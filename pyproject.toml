@@ -45,9 +45,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/seleniumboot/selenium-mcp"
-Repository = "https://github.com/seleniumboot/selenium-mcp"
-Issues = "https://github.com/seleniumboot/selenium-mcp/issues"
+Homepage = "https://github.com/hakanngul/testfly-mcp"
+Repository = "https://github.com/hakanngul/testfly-mcp"
+Issues = "https://github.com/hakanngul/testfly-mcp/issues"
+
 
 [project.scripts]
 testfly-mcp = "testfly_mcp.server:run"

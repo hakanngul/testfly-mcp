@@ -28,11 +28,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/seleniumboot/selenium-mcp"
+    "url": "https://github.com/hakanngul/testfly-mcp"
   },
-  "homepage": "https://github.com/seleniumboot/selenium-mcp",
+  "homepage": "https://github.com/hakanngul/testfly-mcp",
   "bugs": {
-    "url": "https://github.com/seleniumboot/selenium-mcp/issues"
+    "url": "https://github.com/hakanngul/testfly-mcp/issues"
   },
   "license": "MIT",
   "activationEvents": [
@@ -68,7 +68,7 @@
       },
       {
         "command": "testfly-mcp.install",
-        "title": "TestFly MCP: Install (pip install testfly-mcp)"
+        "title": "TestFly MCP: Install Server (from GitHub)"
       },
       {
         "command": "testfly-mcp.upgrade",

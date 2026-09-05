@@ -1,9 +1,9 @@
 export const EXTENSION_ID = 'testfly-mcp';
 export const DISPLAY_NAME = 'TestFly MCP';
-export const INSTALL_CMD = 'pip install testfly-mcp';
-export const UPGRADE_CMD = 'pip install --upgrade testfly-mcp';
+export const INSTALL_CMD = 'pip install git+https://github.com/hakanngul/testfly-mcp.git';
+export const UPGRADE_CMD = 'pip install --upgrade git+https://github.com/hakanngul/testfly-mcp.git';
 export const MCP_SERVER_KEY = 'testfly';
-export const DOCS_URL = 'https://github.com/seleniumboot/selenium-mcp';
+export const DOCS_URL = 'https://github.com/hakanngul/testfly-mcp';
 
 export const DEFAULT_TESTFLY_YML = `# TestFly Configuration
 execution:

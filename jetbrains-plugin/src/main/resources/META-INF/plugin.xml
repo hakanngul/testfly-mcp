@@ -2,7 +2,7 @@
     <id>io.testfly.mcp</id>
     <!-- name and version are supplied by Gradle (pluginConfiguration in build.gradle.kts,
          driven by gradle.properties) and patched into this file at build time. -->
-    <vendor url="https://github.com/seleniumboot/selenium-mcp" email="seleniumboot.dev@gmail.com">TestFly</vendor>
+    <vendor url="https://github.com/hakanngul/testfly-mcp" email="seleniumboot.dev@gmail.com">TestFly</vendor>
 
     <description><![CDATA[
         <p>MCP server for <b>TestFly & Selenium WebDriver</b> browser automation.</p>
@@ -17,10 +17,8 @@
             <li>Playwright migration hints</li>
             <li>No ChromeDriver setup — browser auto-starts on first use</li>
         </ul>
-        <p>Requires: <code>pip install testfly-mcp</code> and Python 3.10+</p>
-        <p><a href="https://github.com/seleniumboot/selenium-mcp">GitHub</a> |
-           <a href="https://pypi.org/project/testfly-mcp/">PyPI</a> |
-           <a href="https://seleniumboot.github.io/selenium-boot/">Docs</a></p>
+        <p>Requires: <code>pip install git+https://github.com/hakanngul/testfly-mcp.git</code> and Python 3.10+</p>
+        <p><a href="https://github.com/hakanngul/testfly-mcp">GitHub Repository</a></p>
     ]]></description>
 
     <change-notes><![CDATA[

@@ -128,8 +128,8 @@ public class LoginTest {
 - Ensure a `.mcp.json` file exists in your project root (the extension creates it automatically)
 - Do `Developer: Reload Window` and open a fresh Claude Code chat
 
-**"seleniumboot-mcp not found" error**
-- Run `pip install seleniumboot-mcp` in a terminal
+**"testfly-mcp not found" error**
+- Run `pip install git+https://github.com/hakanngul/testfly-mcp.git` (or `pip install -e .` from cloned repo)
 - Make sure the Python `bin` directory is in your PATH
 
 **Chrome doesn't open**
@@ -140,7 +140,6 @@ public class LoginTest {
 
 ## Links
 
-- [GitHub](https://github.com/seleniumboot/selenium-mcp)
-- [PyPI package](https://pypi.org/project/seleniumboot-mcp/)
-- [Demo video](https://youtu.be/54LoY2HNLrs)
-- [Report an issue](https://github.com/seleniumboot/selenium-mcp/issues)
+- [GitHub Repository](https://github.com/hakanngul/testfly-mcp)
+- [Report an issue](https://github.com/hakanngul/testfly-mcp/issues)
+

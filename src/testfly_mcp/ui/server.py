@@ -612,7 +612,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span class="pulse-dot"></span>
         <span id="headerStatus">MCP Connected</span>
       </div>
-      <a href="https://github.com/seleniumboot/selenium-mcp" target="_blank" class="btn btn-secondary btn-sm">GitHub</a>
+      <a href="https://github.com/hakanngul/testfly-mcp" target="_blank" class="btn btn-secondary btn-sm">GitHub</a>
     </div>
   </header>
 

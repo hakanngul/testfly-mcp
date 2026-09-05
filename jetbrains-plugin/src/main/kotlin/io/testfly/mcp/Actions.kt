@@ -10,9 +10,9 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-private const val INSTALL_CMD = "pip install testfly-mcp"
-private const val UPGRADE_CMD = "pip install --upgrade testfly-mcp"
-private const val DOCS_URL = "https://github.com/seleniumboot/selenium-mcp"
+private const val INSTALL_CMD = "pip install git+https://github.com/hakanngul/testfly-mcp.git"
+private const val UPGRADE_CMD = "pip install --upgrade git+https://github.com/hakanngul/testfly-mcp.git"
+private const val DOCS_URL = "https://github.com/hakanngul/testfly-mcp"
 internal const val NOTIFICATION_GROUP = "TestFly MCP"
 
 private const val DEFAULT_TESTFLY_YML = """# TestFly Configuration
