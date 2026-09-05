@@ -62,6 +62,10 @@
                     text="Register MCP Server with AI Assistant"
                     description="Add testfly-mcp to JetBrains AI Assistant MCP servers"/>
             <separator/>
+            <action id="TestFly.LaunchStudio"
+                    class="io.testfly.mcp.LaunchStudioAction"
+                    text="Launch Interactive Web Studio"
+                    description="Open TestFly MCP Interactive Studio in browser (testfly-mcp ui)"/>
             <action id="TestFly.InitConfig"
                     class="io.testfly.mcp.InitConfigAction"
                     text="Initialize testfly.yml Configuration"

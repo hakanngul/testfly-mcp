@@ -42,6 +42,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 detail: 'register'
             },
             {
+                label: '$(browser) Launch Interactive Web Studio',
+                description: 'Open TestFly Studio web dashboard in browser (testfly-mcp ui)',
+                detail: 'launchStudio'
+            },
+            {
                 label: '$(file-code) Initialize testfly.yml',
                 description: 'Generate standard TestFly configuration in workspace root',
                 detail: 'initConfig'
@@ -68,6 +73,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 break;
             case 'register':
                 await runRegister();
+                break;
+            case 'launchStudio':
+                openTerminalAndRun('testfly-mcp ui');
                 break;
             case 'initConfig':
                 await initTestFlyConfig();
@@ -124,6 +132,9 @@ export async function activate(context: vscode.ExtensionContext) {
             openTerminalAndRun(UPGRADE_CMD);
         }),
         vscode.commands.registerCommand('testfly-mcp.checkStatus', runCheckStatus),
+        vscode.commands.registerCommand('testfly-mcp.launchStudio', () => {
+            openTerminalAndRun('testfly-mcp ui');
+        }),
         vscode.commands.registerCommand('testfly-mcp.initConfig', initTestFlyConfig),
         vscode.commands.registerCommand('testfly-mcp.openDocs', () => {
             vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));

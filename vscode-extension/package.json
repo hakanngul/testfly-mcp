@@ -75,6 +75,10 @@
         "title": "TestFly MCP: Upgrade to Latest"
       },
       {
+        "command": "testfly-mcp.launchStudio",
+        "title": "TestFly MCP: Launch Interactive Web Studio"
+      },
+      {
         "command": "testfly-mcp.initConfig",
         "title": "TestFly MCP: Initialize testfly.yml Config"
       },

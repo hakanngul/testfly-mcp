@@ -135,6 +135,16 @@ class OpenDocsAction : AnAction() {
     }
 }
 
+class LaunchStudioAction : AnAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val cmd = InstallChecker.resolveCommand() ?: "testfly-mcp"
+        runPipCommand(project, "$cmd ui")
+        notify(project, "Launching TestFly MCP Studio at <code>http://127.0.0.1:8765</code>...", NotificationType.INFORMATION)
+    }
+}
+
+
 private fun runPipCommand(project: Project, command: String) {
     try {
         val isWindows = System.getProperty("os.name").lowercase().contains("win")

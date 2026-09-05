@@ -405,6 +405,7 @@ class BrowserTools:
         return {
             "start_browser":       self._start_browser,
             "navigate":            self._navigate,
+            "navigate_to":         self._navigate,
             "take_screenshot":     self._take_screenshot,
             "get_page_source":     self._get_page_source,
             "get_page_title":      self._get_page_title,
@@ -438,6 +439,7 @@ class BrowserTools:
             "clear_mock_responses":   self._clear_mock_responses,
             "compare_screenshot":     self._compare_screenshot,
             "check_accessibility":    self._check_accessibility,
+            "get_a11y_tree":          self._check_accessibility,
         }
 
     # ── Browser lifecycle ────────────────────────────────────────────── #
