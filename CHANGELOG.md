@@ -1,0 +1,103 @@
+# Changelog
+
+All notable changes to **testfly-mcp** are documented here.
+This project adheres to [Semantic Versioning](https://semver.org/).
+
+## [1.0.0]
+
+### Added
+- **Full TestFly v1.0.0 framework alignment**:
+  - Primary package namespace `testfly_mcp` with full backward-compatibility shim in `selenium_mcp`.
+  - Added `detect_testfly` tool (detects `testfly.yml`, `testfly.yaml`, `testfly-*.yml`, and Maven/Gradle dependencies).
+  - Added `generate_testfly_config` tool to emit standard `testfly.yml` configurations with headless, parallel, timeouts, retries, and reporting settings.
+  - Added `generate_testfly_pom` tool to emit clean Maven `pom.xml` with `io.testfly:testfly` v1.0.0.
+  - Generated Cucumber code now outputs both step definitions (`BaseCucumberSteps`) and test runner (`RunCucumberTest` extending `BaseCucumberTest`).
+  - Total tool count increased to 88 tools.
+
+### Changed
+- **Framework-native Java codegen**:
+  - All generated code targets `io.testfly.*` (`io.testfly.test.BaseTest`, `io.testfly.test.BasePage`, `io.testfly.junit5.BaseJUnit5Test`, `io.testfly.cucumber.BaseCucumberSteps`, `io.testfly.cucumber.BaseCucumberTest`).
+  - Default framework is now `framework="testfly"` across all Java generators (`generate_java_testng`, `generate_java_junit5`, `generate_java_page_object`, `generate_gherkin`).
+  - Standardized on `find(...)` instead of deprecated `$()`.
+  - Expanded role enum to all 35 WAI-ARIA roles defined in `io.testfly.locator.Role`.
+  - Assertions now emit unified auto-waiting `assertThat(getDriver()).hasTitle(...)`, `hasUrl(...)`, `titleContains(...)`, `urlContains(...)`, and `assertThat(locator).isVisible()`, `.hasText(...)`.
+- **Package and Extension Branding**:
+  - PyPI package name updated to `testfly-mcp` with dual entrypoints `testfly-mcp` and `seleniumboot-mcp`.
+  - VS Code extension and JetBrains plugin metadata updated to TestFly MCP.
+
+## [0.5.0]
+
+### Changed
+- **Migrated to the `mcp` 2.0 SDK.** 2.0.0 removed the `@server.list_tools()` /
+  `@server.call_tool()` decorators this server registered its 85 tools with;
+  they are replaced by `on_list_tools` / `on_call_tool` callbacks passed to the
+  `Server` constructor, taking a `ServerRequestContext` plus typed request
+  params and returning `ListToolsResult` / `CallToolResult`. This completes the
+  work 0.4.2 deferred when it pinned the SDK away from 2.x. (#2)
+- **The `mcp` dependency is now `>=2.0.0`.** The temporary `<2.0.0` ceiling from
+  0.4.2 is gone; 1.x is no longer supported, because the 1.x calling convention
+  no longer exists in the code. An upper bound returns when `mcp` 3.0 appears —
+  Dependabot now watches for exactly that.
+- **The server reports its own version** in the MCP handshake, read from the
+  installed distribution metadata rather than duplicated in source.
+
+**No behaviour change on the wire.** Tool names, input schemas, response
+content, and error strings are byte-for-byte what 0.4.x emitted; the migration
+was verified as a migration, not shipped alongside other changes. Verified
+against the published artifact in a clean environment: 85/85 tools registered
+with a handler each, entry point exits cleanly, protocol version `2025-03-26`
+still negotiates, and the 68-test `selenium-mcp-test` Java suite passes in full
+over real stdio JSON-RPC.
+
+### Infrastructure
+- **PyPI publishing now uses Trusted Publishing (OIDC)** instead of a stored API
+  token. The token had been returning 403 since ~2026-07-01, so 0.4.0 through
+  0.4.2 were each published by hand — a manual workaround that hid the breakage.
+- **Dependabot watches the dependencies.** The next upstream major arrives as a
+  pull request rather than as a bug report. That is the whole lesson of #2.
+
+## [0.4.2]
+
+### Fixed
+- **The package no longer installs against an `mcp` SDK it cannot run on.** The
+  dependency was declared `mcp>=1.0.0` with no upper bound, so once `mcp` 2.0.0
+  went stable (2026-07-28) every fresh `pip` / `uv` install resolved to it — and
+  2.0.0 removed the `Server.list_tools` / `Server.call_tool` decorators this
+  server registers all 85 tools with. The result was an `AttributeError` at
+  import time: the entry point died before a single tool was registered, with no
+  workaround available. The dependency is now bounded `mcp>=1.0.0,<2.0.0`.
+  Migrating to the 2.0 API is tracked separately. (Fixes #2)
+
+## [0.4.1]
+
+### Fixed
+- `fill_form` now snapshots each field's accessibility attributes (label / role /
+  test-id), same as the individual `type_text` / `click` tools. Previously,
+  filling a form via `fill_form` recorded no attributes, so generated Selenium
+  Boot code fell back to structural `$(By.id(...))` locators instead of the
+  accessibility-first `getByLabel` / `getByRole`. A11y-first locators are now the
+  default regardless of how the form is filled — no special prompt required.
+
+## [0.4.0]
+
+Framework-native code generation for [Selenium Boot](https://github.com/seleniumboot/selenium-boot) — when the MCP is used inside a Selenium Boot project it now emits idiomatic, accessibility-first framework code instead of raw Selenium.
+
+### Added
+- **`detect_selenium_boot` tool** — detects a Selenium Boot project (looks for `selenium-boot.yml` or the `io.github.seleniumboot` dependency in `pom.xml` / `build.gradle`, walking up parent directories) and recommends `framework="selenium_boot"`. Brings the total to **85 tools**.
+- **`framework="selenium_boot"` for every Java generator** — previously only `generate_java_page_object` supported it. Now `generate_java_testng` (extends `BaseTest`), `generate_java_junit5` (extends `BaseJUnit5Test`) and `generate_gherkin` (steps extend `BaseCucumberSteps`) do too. JUnit 5 / Cucumber use the static `Locator.by*` factories, since their base classes don't expose the `getBy*` helpers.
+- **Web-first assertions** — the `assert_*` tools now record passing checks to the session log, and Selenium Boot codegen emits `assertThat(locator).isVisible()/.hasText()/.hasAttribute()/.count()`. Page-title / URL checks fall back to the TestNG or JUnit 5 assertion API.
+- **`getByLabel` locators** — the interaction snapshot now captures an element's associated `<label>` text (for/wrapping/`aria-labelledby`/`.labels`), and it ranks high in the accessibility-first locator ladder for form controls.
+- **SmartLocator fallback** — brittle, low-confidence elements with multiple candidate strategies now resolve through a `smartFind(...)` helper in generated page objects.
+- When a Selenium Boot project is detected, the raw (non-framework) generators prepend a banner recommending regeneration with `framework="selenium_boot"`.
+
+### Changed
+- Accessibility-first locator priority: `testid → role+name → label → placeholder → alt → title → id → name → SmartLocator/selector`.
+- Server instructions guide the agent to call `detect_selenium_boot` before generating Java.
+
+### Fixed
+- Raw Java (TestNG / JUnit 5) and C# NUnit generators no longer redeclare the `field` / `dropdown` local variable when a flow has more than one text input or `<select>` (previously a duplicate-variable compile error); the variables are now uniquely numbered.
+
+## [0.3.7]
+- CI improvements; Jenkins / GitLab CI pipeline codegen; 84 tools.
+
+Earlier releases predate this changelog — see the git history.
