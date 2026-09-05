@@ -51,7 +51,7 @@ Issues = "https://github.com/seleniumboot/selenium-mcp/issues"
 
 [project.scripts]
 testfly-mcp = "testfly_mcp.server:run"
-seleniumboot-mcp = "selenium_mcp.server:run"
+seleniumboot-mcp = "testfly_mcp.server:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]

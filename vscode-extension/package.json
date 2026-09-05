@@ -59,16 +59,28 @@
     },
     "commands": [
       {
+        "command": "testfly-mcp.menu",
+        "title": "TestFly MCP: Open Actions Menu"
+      },
+      {
+        "command": "testfly-mcp.checkStatus",
+        "title": "TestFly MCP: Check Installation & Diagnostics"
+      },
+      {
         "command": "testfly-mcp.install",
         "title": "TestFly MCP: Install (pip install testfly-mcp)"
       },
       {
         "command": "testfly-mcp.upgrade",
-        "title": "TestFly MCP: Upgrade to latest"
+        "title": "TestFly MCP: Upgrade to Latest"
       },
       {
-        "command": "testfly-mcp.checkStatus",
-        "title": "TestFly MCP: Check installation status"
+        "command": "testfly-mcp.initConfig",
+        "title": "TestFly MCP: Initialize testfly.yml Config"
+      },
+      {
+        "command": "testfly-mcp.openDocs",
+        "title": "TestFly MCP: Open Documentation"
       }
     ]
   },

@@ -1,1 +1,1 @@
-rootProject.name = "seleniumboot-mcp-jetbrains"
+rootProject.name = "testfly-mcp-jetbrains"

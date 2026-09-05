@@ -1,7 +1,6 @@
 import pytest
 from mcp.types import CallToolRequestParams
 import testfly_mcp.server as tf_server
-import selenium_mcp.server as legacy_server
 
 
 def test_tool_count_and_handlers():
@@ -19,12 +18,6 @@ def test_tool_count_and_handlers():
     # Ensure each tool has a registered handler
     for tool in tf_server.ALL_TOOLS:
         assert tool.name in tf_server.TOOL_HANDLERS, f"Missing handler for {tool.name}"
-
-
-def test_legacy_shim_exports():
-    assert legacy_server.ALL_TOOLS == tf_server.ALL_TOOLS
-    assert legacy_server.TOOL_HANDLERS == tf_server.TOOL_HANDLERS
-    assert legacy_server.app == tf_server.app
 
 
 @pytest.mark.asyncio

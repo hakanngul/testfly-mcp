@@ -1,4 +1,4 @@
-package io.github.seleniumboot.mcp
+package io.testfly.mcp
 
 import com.intellij.openapi.application.PathManager
 import org.w3c.dom.Document
@@ -11,7 +11,8 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 private const val COMPONENT_NAME = "McpApplicationServerCommands"
-private const val SERVER_NAME = "seleniumboot"
+private const val SERVER_NAME = "testfly"
+private const val LEGACY_SERVER_NAME = "seleniumboot"
 private const val MCP_FILE = "llm.mcpServers.xml"
 
 object MCPRegistrar {
@@ -19,7 +20,8 @@ object MCPRegistrar {
     fun isRegistered(): Boolean {
         val file = mcpConfigFile() ?: return false
         if (!file.exists()) return false
-        return file.readText().contains("seleniumboot")
+        val content = file.readText()
+        return content.contains("name=\"$SERVER_NAME\"") || content.contains("name='$SERVER_NAME'")
     }
 
     fun register(command: String): Boolean {
@@ -31,11 +33,12 @@ object MCPRegistrar {
             val component = findOrCreateComponent(doc, root)
             val commands = findOrCreateElement(doc, component, "commands")
 
-            // Remove existing entry with same name to avoid duplicates
+            // Remove existing entry with testfly or legacy seleniumboot name to avoid duplicates
             val existing = commands.getElementsByTagName("*")
             for (i in existing.length - 1 downTo 0) {
                 val node = existing.item(i) as? Element ?: continue
-                if (node.getAttribute("name") == SERVER_NAME) {
+                val name = node.getAttribute("name")
+                if (name == SERVER_NAME || name == LEGACY_SERVER_NAME) {
                     commands.removeChild(node)
                 }
             }

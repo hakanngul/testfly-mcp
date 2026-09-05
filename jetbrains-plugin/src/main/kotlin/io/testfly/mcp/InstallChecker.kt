@@ -1,9 +1,13 @@
-package io.github.seleniumboot.mcp
+package io.testfly.mcp
 
 object InstallChecker {
 
     fun isInstalled(): Boolean {
         val checks = listOf(
+            listOf("python3", "-c", "import testfly_mcp"),
+            listOf("python", "-c", "import testfly_mcp"),
+            listOf("pip", "show", "testfly-mcp"),
+            listOf("pip3", "show", "testfly-mcp"),
             listOf("python3", "-c", "import selenium_mcp"),
             listOf("python", "-c", "import selenium_mcp"),
             listOf("pip", "show", "seleniumboot-mcp"),
@@ -13,12 +17,19 @@ object InstallChecker {
     }
 
     fun resolveCommand(): String? {
-        for (cmd in listOf("seleniumboot-mcp", "seleniumboot-mcp3")) {
+        val candidates = listOf("testfly-mcp", "testfly-mcp3", "seleniumboot-mcp", "seleniumboot-mcp3")
+        for (cmd in candidates) {
             val which = if (isWindows()) listOf("where", cmd) else listOf("which", cmd)
             val output = runCapture(which)?.trim()
             if (!output.isNullOrEmpty()) return output.lines().first().trim()
         }
         return null
+    }
+
+    fun getInstalledVersion(): String? {
+        val script = "import testfly_mcp; from importlib.metadata import version; print(version('testfly-mcp'))"
+        return runCapture(listOf("python3", "-c", script))?.trim()
+            ?: runCapture(listOf("python", "-c", script))?.trim()
     }
 
     private fun runSilently(cmd: List<String>): Boolean = try {
