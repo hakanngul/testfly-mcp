@@ -144,6 +144,70 @@ def cmd_ui(port: int = 8765, open_browser: bool = True):
     start_ui_server(port=port, open_browser=open_browser)
 
 
+def cmd_shard(
+    total: int = 2,
+    index: int = 0,
+    metrics_path: Optional[str] = None,
+    output_format: str = "surefire",
+    output_file: Optional[str] = None,
+):
+    """Calculates optimal test partition for CI/CD parallel jobs using LPT bin-packing."""
+    import json
+    from testfly_mcp.sharder import (
+        load_metrics_durations,
+        compute_lpt_shards,
+        format_surefire_pattern,
+        format_testng_xml,
+        format_ascii_dashboard,
+        ShardedTestItem,
+    )
+
+    m_file = Path(metrics_path) if metrics_path else Path.cwd() / "target" / "testfly-metrics.json"
+    items = load_metrics_durations(m_file)
+    if not items:
+        # Fallback: scan test directory for *Test.java classes
+        test_dir = Path.cwd() / "src" / "test" / "java"
+        if test_dir.exists():
+            for java_file in test_dir.rglob("*Test.java"):
+                rel = java_file.relative_to(test_dir)
+                cls_name = str(rel).replace("/", ".").replace("\\", ".")[:-5]
+                items.append(ShardedTestItem(id=cls_name, duration_ms=5000, class_name=cls_name))
+
+    plan = compute_lpt_shards(items, total)
+
+    if index < 0 or index >= len(plan.shards):
+        print(f"Error: Shard index {index} out of range [0, {total})", file=sys.stderr)
+        sys.exit(1)
+
+    shard = plan.shards[index]
+
+    if output_format == "surefire":
+        result = format_surefire_pattern(shard)
+        if output_file:
+            Path(output_file).write_text(result, encoding="utf-8")
+        else:
+            print(result)
+    elif output_format in ("xml", "testng-xml"):
+        xml = format_testng_xml(shard)
+        if output_file:
+            Path(output_file).write_text(xml, encoding="utf-8")
+            print(f"Generated TestNG suite at {output_file}")
+        else:
+            print(xml)
+    elif output_format == "json":
+        data = {
+            "total_shards": plan.total_shards,
+            "current_shard": index,
+            "makespan_ms": plan.makespan_ms,
+            "balance_efficiency": plan.balance_efficiency,
+            "tests": [it.class_name or it.id for it in shard.items],
+            "estimated_duration_ms": shard.total_duration_ms,
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        print(format_ascii_dashboard(plan, index))
+
+
 def cmd_interactive():
     """Presents an interactive terminal menu when run directly in a human terminal."""
     ver = get_version()
@@ -157,11 +221,12 @@ def cmd_interactive():
         print("  [4] List MCP Tools (88 tools)")
         print("  [5] Generate testfly.yml in Current Directory")
         print("  [6] Start MCP Stdio Server (for AI Assistants / IDEs)")
+        print("  [7] Smart Test Sharder (CI Parallel Bin-Packing)")
         print("  [q] Exit")
         print("--------------------------------------------------------")
 
         try:
-            choice = input("Select an option [1-6, q]: ").strip().lower()
+            choice = input("Select an option [1-7, q]: ").strip().lower()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             break
@@ -186,11 +251,15 @@ def cmd_interactive():
             print("\nStarting MCP Stdio server... (Waiting for JSON-RPC messages)")
             run_stdio_server()
             break
+        elif choice == "7":
+            tot = input("Total shards [4]: ").strip() or "4"
+            idx = input("Current shard index [0]: ").strip() or "0"
+            cmd_shard(total=int(tot), index=int(idx), output_format="dashboard")
         elif choice in ("q", "quit", "exit"):
             print("Goodbye!")
             break
         else:
-            print("Invalid selection. Please enter a number 1 to 6 or 'q'.")
+            print("Invalid selection. Please enter a number 1 to 7 or 'q'.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -248,6 +317,14 @@ def build_parser() -> argparse.ArgumentParser:
     studio_p.add_argument("--port", "-p", type=int, default=8765, help="Port for web studio (default: 8765)")
     studio_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
 
+    # shard
+    shard_p = subparsers.add_parser("shard", help="Split test suite across parallel CI nodes using LPT bin-packing")
+    shard_p.add_argument("--total", "-t", type=int, default=2, help="Total number of parallel shards (default: 2)")
+    shard_p.add_argument("--index", "-i", type=int, default=0, help="0-based index of current shard node (default: 0)")
+    shard_p.add_argument("--metrics", "-m", type=str, help="Path to testfly-metrics.json (default: target/testfly-metrics.json)")
+    shard_p.add_argument("--format", "-f", choices=["surefire", "json", "xml", "testng-xml", "dashboard"], default="surefire", help="Output format (default: surefire)")
+    shard_p.add_argument("--output", "-o", type=str, help="File to write shard output to (optional)")
+
     # init-config
     cfg_p = subparsers.add_parser("init-config", help="Generate standard testfly.yml template in current directory")
     cfg_p.add_argument("--force", "-f", action="store_true", help="Overwrite existing testfly.yml if present")
@@ -286,6 +363,14 @@ def main_cli(args: Optional[List[str]] = None):
         cmd_tools(search=getattr(parsed, "search", None))
     elif parsed.subcommand in ("ui", "studio"):
         cmd_ui(port=parsed.port, open_browser=not parsed.no_browser)
+    elif parsed.subcommand == "shard":
+        cmd_shard(
+            total=parsed.total,
+            index=parsed.index,
+            metrics_path=parsed.metrics,
+            output_format=parsed.format,
+            output_file=parsed.output,
+        )
     elif parsed.subcommand == "init-config":
         cmd_init_config(force=parsed.force)
     elif parsed.subcommand == "init":
