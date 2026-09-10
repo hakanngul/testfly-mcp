@@ -51,6 +51,8 @@ Issues = "https://github.com/hakanngul/testfly-mcp/issues"
 
 
 [project.scripts]
+testfly = "testfly_mcp.cli:main_cli"
+testfly-cli = "testfly_mcp.cli:main_cli"
 testfly-mcp = "testfly_mcp.server:run"
 seleniumboot-mcp = "testfly_mcp.server:run"
 
