@@ -177,3 +177,76 @@ async def test_generate_gherkin_testfly(sample_session):
     assert "File: com/example/cucumber/RunCucumberTest.java" in code
     assert "import io.testfly.cucumber.BaseCucumberTest;" in code
     assert "public class RunCucumberTest extends BaseCucumberTest" in code
+
+
+@pytest.mark.asyncio
+async def test_compound_xpath_not_collapsed_to_id():
+    """Verify that ancestor-anchored XPaths like //*[@id='login_credentials']//h4
+    are NOT collapsed to By.id('login_credentials') but preserved as By.xpath(...)."""
+    session = [
+        {"action": "navigate", "url": "https://saucedemo.com"},
+        {
+            "action": "click",
+            "selector": "//*[@id='login_credentials']//h4",
+            "by": "xpath",
+            "attrs": {"tag": "h4", "text": "Accepted usernames are:"}
+        },
+        {
+            "action": "click",
+            "selector": "//*[@id='user-name']",
+            "by": "xpath",
+            "attrs": {"tag": "input", "idAttr": "user-name"}
+        }
+    ]
+    browser = DummyBrowser(session)
+    codegen = CodegenTools(browser)
+
+    code = await codegen._generate_java_testng({
+        "test_name": "SauceDemoTest",
+        "package_name": "com.example.tests"
+    })
+
+    # The h4 must NOT be collapsed to By.id("login_credentials")
+    assert 'By.id("login_credentials")' not in code
+    # With accessibility attrs (tag=h4, text), it generates getByRole(Role.HEADING, ...).withLevel(4)
+    assert 'getByRole(Role.HEADING, "Accepted usernames are:").withLevel(4)' in code
+
+    # Now test raw selector without attrs (must preserve By.xpath, not collapse to By.id)
+    raw_session = [
+        {"action": "navigate", "url": "https://saucedemo.com"},
+        {
+            "action": "click",
+            "selector": "//*[@id='login_credentials']//h4",
+            "by": "xpath"
+        }
+    ]
+    raw_browser = DummyBrowser(raw_session)
+    raw_codegen = CodegenTools(raw_browser)
+    raw_code = await raw_codegen._generate_java_testng({
+        "test_name": "RawXPathTest",
+        "package_name": "com.example.tests"
+    })
+    assert 'By.id("login_credentials")' not in raw_code
+    assert 'find(By.xpath("//*[@id=\'login_credentials\']//h4")).click();' in raw_code
+
+    # The exact single element query on user-name SHOULD be collapsed to By.id("user-name")
+    assert 'find(By.id("user-name")).click();' in code
+
+
+def test_element_tools_alternatives_container_conversion():
+    """Verify element_tools generates container-anchored XPath alternatives for CSS."""
+    from testfly_mcp.tools.element_tools import ElementTools
+    tools = ElementTools(DummyBrowser([]))
+
+    # #login_credentials h4 -> //*[@id='login_credentials']//h4
+    alts = tools._alternatives("#login_credentials h4", "css")
+    assert ("//*[@id='login_credentials']//h4", "xpath") in alts
+
+    # [data-test='login-credentials'] h4 -> //*[@data-test='login-credentials']//h4
+    alts_test = tools._alternatives("[data-test='login-credentials'] h4", "css")
+    assert ("//*[@data-test='login-credentials']//h4", "xpath") in alts_test
+
+    # Reverse: //*[@id='login_credentials']//h4 -> #login_credentials h4
+    alts_rev = tools._alternatives("//*[@id='login_credentials']//h4", "xpath")
+    assert ("#login_credentials h4", "css") in alts_rev
+

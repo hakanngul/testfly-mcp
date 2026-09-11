@@ -52,9 +52,6 @@ POM_TEMPLATE_TESTNG = """<?xml version="1.0" encoding="UTF-8"?>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${{surefire.version}}</version>
                 <configuration>
-                    <suiteXmlFiles>
-                        <!-- Runs all tests matching **/*Test.java by default -->
-                    </suiteXmlFiles>
                     <systemPropertyVariables>
                         <!-- Forward testfly profile property if set -->
                         <testfly.profile>${{testfly.profile}}</testfly.profile>
@@ -246,7 +243,6 @@ open target/testfly-reports/index.html
 SAMPLE_TESTNG_WEB_TEST = """package {package_name}.tests;
 
 import io.testfly.test.BaseTest;
-import org.openqa.selenium.By;
 import org.testng.annotations.Test;
 
 public class SampleWebTest extends BaseTest {{
@@ -334,7 +330,8 @@ def scaffold_project(
 ) -> Path:
     """Scaffolds a complete TestFly project."""
     target_dir.mkdir(parents=True, exist_ok=True)
-    art_id = artifact_id or project_name.lower().replace(" ", "-").replace("_", "-")
+    clean_name = target_dir.resolve().name if project_name in (".", "") else project_name
+    art_id = artifact_id or clean_name.lower().replace(" ", "-").replace("_", "-")
     pkg_name = f"{group_id}.{art_id.replace('-', '_')}"
     pkg_path = pkg_name.replace(".", "/")
 
@@ -356,7 +353,7 @@ def scaffold_project(
     (target_dir / ".gitignore").write_text(GITIGNORE_TEMPLATE, encoding="utf-8")
 
     # 4. README.md
-    readme_content = README_TEMPLATE.format(project_name=project_name)
+    readme_content = README_TEMPLATE.format(project_name=clean_name)
     (target_dir / "README.md").write_text(readme_content, encoding="utf-8")
 
     # 5. Java test directories

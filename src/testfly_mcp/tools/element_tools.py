@@ -88,8 +88,22 @@ class ElementTools:
                 xpath = f"//{tag}{rest.replace('[', '[@').replace('=', '=').replace(']', ']')}"
                 alts.append((xpath, "xpath"))
 
-            # Strip CSS pseudo-classes/elements like :not(...), :first-child, ::before
+            # Container-anchored: #id tag or #id > tag → XPath
             import re
+            m_cont = re.match(r"^#([\w-]+)\s*(>|\s)\s*([\w-]+)$", selector)
+            if m_cont:
+                cid, rel, ctag = m_cont.groups()
+                axis = "/" if rel == ">" else "//"
+                alts.append((f"//*[@id='{cid}']{axis}{ctag}", "xpath"))
+
+            # Container-anchored: [attr='val'] tag → XPath
+            m_attr_cont = re.match(r"^\[\s*([\w-]+)=['\"]([^'\"]+)['\"]\s*\]\s*(>|\s)\s*([\w-]+)$", selector)
+            if m_attr_cont:
+                attr, val, rel, ctag = m_attr_cont.groups()
+                axis = "/" if rel == ">" else "//"
+                alts.append((f"//*[@{attr}='{val}']{axis}{ctag}", "xpath"))
+
+            # Strip CSS pseudo-classes/elements like :not(...), :first-child, ::before
             stripped = re.sub(r':{1,2}[\w-]+(\([^)]*\))?', '', selector).strip()
             if stripped and stripped != selector:
                 alts.append((stripped, "css"))
@@ -99,11 +113,11 @@ class ElementTools:
                 alts.append((f"//*[contains(text(),'{selector}')]", "xpath"))
 
         elif by == "xpath":
+            import re
             # Try without axis prefix variations
             if selector.startswith("//"):
                 alts.append((selector.lstrip("/"), "xpath"))
             # Try CSS conversion for simple tag[@attr] xpaths
-            import re
             m = re.match(r'^//(\w+)\[@(\w+)=[\'"]([^\'"]+)[\'"]\]$', selector)
             if m:
                 tag, attr, val = m.groups()
@@ -112,6 +126,13 @@ class ElementTools:
                     alts.append((val, "id"))
                 elif attr == "name":
                     alts.append((val, "name"))
+
+            # Container-anchored: //*[@id='val']//tag → CSS
+            m_xp_cont = re.match(r"^/{1,2}\*?\[@id=['\"]([^'\"]+)['\"]\](/|//)(\w+)$", selector)
+            if m_xp_cont:
+                cid, axis, ctag = m_xp_cont.groups()
+                rel = " > " if axis == "/" else " "
+                alts.append((f"#{cid}{rel}{ctag}", "css"))
 
         elif by == "id":
             alts.append((f"#{selector}", "css"))

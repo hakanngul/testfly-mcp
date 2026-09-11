@@ -1,0 +1,90 @@
+export interface ToolMetadata {
+    name: string;
+    category: string;
+    description: string;
+    paramsCount: number;
+}
+
+export const TOOLS_DATA: ToolMetadata[] = [
+    // --- Browser Tools ---
+    { name: 'start_browser', category: 'Browser Control', description: 'Start a new Chrome browser instance with configurable options (headless, window size, user agent).', paramsCount: 4 },
+    { name: 'close_browser', category: 'Browser Control', description: 'Close the currently active browser session and release WebDriver resources.', paramsCount: 0 },
+    { name: 'restart_browser', category: 'Browser Control', description: 'Restart the browser session with fresh state and cookies.', paramsCount: 0 },
+    { name: 'navigate_to', category: 'Browser Control', description: 'Navigate to the specified URL.', paramsCount: 1 },
+    { name: 'go_back', category: 'Browser Control', description: 'Navigate back to the previous page in history.', paramsCount: 0 },
+    { name: 'go_forward', category: 'Browser Control', description: 'Navigate forward to the next page in history.', paramsCount: 0 },
+    { name: 'refresh_page', category: 'Browser Control', description: 'Refresh the current page.', paramsCount: 0 },
+    { name: 'set_window_size', category: 'Browser Control', description: 'Set the browser window width and height.', paramsCount: 2 },
+    { name: 'maximize_window', category: 'Browser Control', description: 'Maximize the browser window.', paramsCount: 0 },
+    { name: 'take_screenshot', category: 'Browser Control', description: 'Capture a screenshot of the current page (returns base64 image or saves to file).', paramsCount: 2 },
+    { name: 'get_page_source', category: 'Browser Control', description: 'Get the full HTML DOM source of the current page.', paramsCount: 0 },
+    { name: 'get_title', category: 'Browser Control', description: 'Get the title of the current page.', paramsCount: 0 },
+    { name: 'get_current_url', category: 'Browser Control', description: 'Get the current URL of the browser.', paramsCount: 0 },
+    { name: 'execute_script', category: 'Browser Control', description: 'Execute arbitrary JavaScript code in the browser context.', paramsCount: 2 },
+    { name: 'new_tab', category: 'Browser Control', description: 'Open a new browser tab and optionally navigate to a URL.', paramsCount: 1 },
+    { name: 'switch_tab', category: 'Browser Control', description: 'Switch to a tab by its 0-based index or window handle.', paramsCount: 1 },
+    { name: 'close_tab', category: 'Browser Control', description: 'Close the current browser tab.', paramsCount: 0 },
+    { name: 'get_cookies', category: 'Browser Control', description: 'Get all browser cookies for the current domain.', paramsCount: 0 },
+    { name: 'set_cookie', category: 'Browser Control', description: 'Add or modify a browser cookie.', paramsCount: 4 },
+    { name: 'delete_cookie', category: 'Browser Control', description: 'Delete a specific cookie by name.', paramsCount: 1 },
+    { name: 'delete_all_cookies', category: 'Browser Control', description: 'Clear all cookies in the current browser session.', paramsCount: 0 },
+    { name: 'get_console_logs', category: 'Browser Control', description: 'Retrieve browser console logs (warnings and errors).', paramsCount: 0 },
+    { name: 'emulate_device', category: 'Browser Control', description: 'Emulate a mobile device with preset screen dimensions and user agent.', paramsCount: 3 },
+
+    // --- Element Tools ---
+    { name: 'click', category: 'Element Interaction', description: 'Click an element identified by CSS, XPath, role, label, testId, or text.', paramsCount: 4 },
+    { name: 'type_text', category: 'Element Interaction', description: 'Type text into an input field or editable element with auto-waiting.', paramsCount: 4 },
+    { name: 'clear_field', category: 'Element Interaction', description: 'Clear the content of an input or textarea field.', paramsCount: 3 },
+    { name: 'get_text', category: 'Element Interaction', description: 'Get the visible inner text of an element.', paramsCount: 3 },
+    { name: 'get_attribute', category: 'Element Interaction', description: 'Get an HTML attribute value from an element.', paramsCount: 4 },
+    { name: 'select_option', category: 'Element Interaction', description: 'Select an option from a <select> dropdown by visible text, value, or index.', paramsCount: 6 },
+    { name: 'hover', category: 'Element Interaction', description: 'Hover the mouse cursor over an element.', paramsCount: 3 },
+    { name: 'double_click', category: 'Element Interaction', description: 'Perform a double-click on an element.', paramsCount: 3 },
+    { name: 'right_click', category: 'Element Interaction', description: 'Perform a context-menu (right) click on an element.', paramsCount: 3 },
+    { name: 'drag_and_drop', category: 'Element Interaction', description: 'Drag one element and drop it onto another element.', paramsCount: 3 },
+    { name: 'is_displayed', category: 'Element Interaction', description: 'Check whether an element is visible in the viewport.', paramsCount: 3 },
+    { name: 'is_enabled', category: 'Element Interaction', description: 'Check whether an element is interactable and enabled.', paramsCount: 3 },
+    { name: 'wait_for_element', category: 'Element Interaction', description: 'Wait until an element becomes visible on the page.', paramsCount: 4 },
+    { name: 'scroll_to_element', category: 'Element Interaction', description: 'Scroll the window until the element is in view.', paramsCount: 3 },
+    { name: 'fill_form', category: 'Element Interaction', description: 'Fill multiple form fields at once and optionally click submit.', paramsCount: 4 },
+    { name: 'send_keys', category: 'Element Interaction', description: 'Send special keys or combinations (e.g. Enter, Tab, Ctrl+A).', paramsCount: 4 },
+    { name: 'upload_file', category: 'Element Interaction', description: 'Upload a local file by providing its path to a file input element.', paramsCount: 4 },
+    { name: 'find_shadow_element', category: 'Element Interaction', description: 'Locate an element nested inside a Shadow DOM root.', paramsCount: 3 },
+    { name: 'switch_to_frame', category: 'Element Interaction', description: 'Switch WebDriver focus into an iframe.', paramsCount: 5 },
+    { name: 'switch_to_default_content', category: 'Element Interaction', description: 'Switch focus back from an iframe to the main document.', paramsCount: 0 },
+    { name: 'get_table_data', category: 'Element Interaction', description: 'Extract HTML table rows and cells into a structured format.', paramsCount: 3 },
+    { name: 'accept_alert', category: 'Element Interaction', description: 'Accept (OK) an open JavaScript alert or confirmation prompt.', paramsCount: 1 },
+    { name: 'dismiss_alert', category: 'Element Interaction', description: 'Dismiss (Cancel) an open JavaScript alert or confirmation prompt.', paramsCount: 1 },
+    { name: 'get_alert_text', category: 'Element Interaction', description: 'Read the text message displayed in a JavaScript dialog.', paramsCount: 1 },
+    { name: 'type_in_alert', category: 'Element Interaction', description: 'Enter text into a JavaScript prompt dialog and accept it.', paramsCount: 2 },
+    { name: 'get_healed_locators', category: 'Element Interaction', description: 'Inspect locators repaired by the Self-Healing engine.', paramsCount: 0 },
+    { name: 'clear_healed_locators', category: 'Element Interaction', description: 'Reset the Self-Healing locator cache.', paramsCount: 0 },
+
+    // --- Assertion Tools ---
+    { name: 'assert_title', category: 'Web-First Assertions', description: 'Assert page title equals or contains expected text with auto-wait.', paramsCount: 2 },
+    { name: 'assert_url', category: 'Web-First Assertions', description: 'Assert current URL equals or contains expected value.', paramsCount: 2 },
+    { name: 'assert_text', category: 'Web-First Assertions', description: 'Assert element text matches expected content.', paramsCount: 5 },
+    { name: 'assert_element_visible', category: 'Web-First Assertions', description: 'Assert an element is present and visible in the DOM.', paramsCount: 3 },
+    { name: 'assert_element_not_visible', category: 'Web-First Assertions', description: 'Assert an element is absent or hidden.', paramsCount: 3 },
+    { name: 'assert_attribute', category: 'Web-First Assertions', description: 'Assert an element attribute matches the expected value.', paramsCount: 6 },
+    { name: 'assert_page_contains', category: 'Web-First Assertions', description: 'Assert page source or visible text contains a string.', paramsCount: 2 },
+    { name: 'assert_element_count', category: 'Web-First Assertions', description: 'Assert the number of elements matching selector equals expected count.', paramsCount: 3 },
+
+    // --- Codegen Tools ---
+    { name: 'detect_testfly', category: 'Framework & Codegen', description: 'Detect whether workspace is inside a TestFly project.', paramsCount: 1 },
+    { name: 'generate_java_page_object', category: 'Framework & Codegen', description: 'Generate TestFly Page Object (BasePage) and matching Test class.', paramsCount: 3 },
+    { name: 'generate_java_testng', category: 'Framework & Codegen', description: 'Generate Java TestNG test class extending TestFly BaseTest.', paramsCount: 3 },
+    { name: 'generate_java_junit5', category: 'Framework & Codegen', description: 'Generate Java JUnit 5 test class extending BaseJUnit5Test.', paramsCount: 3 },
+    { name: 'generate_gherkin', category: 'Framework & Codegen', description: 'Generate Cucumber .feature, BaseCucumberSteps, and TestNG runner.', paramsCount: 4 },
+    { name: 'generate_testfly_config', category: 'Framework & Codegen', description: 'Generate production-ready testfly.yml configuration.', paramsCount: 8 },
+    { name: 'generate_testfly_pom', category: 'Framework & Codegen', description: 'Generate Maven pom.xml with TestFly dependencies.', paramsCount: 4 },
+    { name: 'generate_python_test', category: 'Framework & Codegen', description: 'Generate pytest + Selenium test script.', paramsCount: 2 },
+    { name: 'generate_csharp_nunit', category: 'Framework & Codegen', description: 'Generate C# NUnit test class.', paramsCount: 2 },
+    { name: 'generate_github_actions', category: 'Framework & Codegen', description: 'Generate GitHub Actions CI workflow for test execution.', paramsCount: 2 },
+    { name: 'generate_jenkins_pipeline', category: 'Framework & Codegen', description: 'Generate declarative Jenkinsfile for automated test runs.', paramsCount: 2 },
+    { name: 'generate_gitlab_ci', category: 'Framework & Codegen', description: 'Generate .gitlab-ci.yml pipeline configuration.', paramsCount: 2 },
+    { name: 'generate_playwright_hints', category: 'Framework & Codegen', description: 'Generate equivalent Playwright TypeScript code hints.', paramsCount: 1 },
+    { name: 'get_session_log', category: 'Framework & Codegen', description: 'Retrieve the recorded action log for this browser session.', paramsCount: 0 },
+    { name: 'clear_session_log', category: 'Framework & Codegen', description: 'Clear the recorded action log.', paramsCount: 0 },
+    { name: 'detect_selenium_boot', category: 'Framework & Codegen', description: 'Legacy compatibility alias for detect_testfly.', paramsCount: 1 }
+];

@@ -40,6 +40,34 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "testfly-mcp-view",
+          "title": "TestFly MCP",
+          "icon": "resources/testfly.svg"
+        }
+      ]
+    },
+    "views": {
+      "testfly-mcp-view": [
+        {
+          "id": "testfly.quickActions",
+          "name": "Quick Actions",
+          "type": "tree"
+        },
+        {
+          "id": "testfly.status",
+          "name": "Environment & Project Status",
+          "type": "tree"
+        },
+        {
+          "id": "testfly.tools",
+          "name": "Available MCP Tools (88)",
+          "type": "tree"
+        }
+      ]
+    },
     "mcpServers": {
       "testfly": {
         "label": "TestFly MCP",
@@ -63,30 +91,63 @@
         "title": "TestFly MCP: Open Actions Menu"
       },
       {
+        "command": "testfly-mcp.launchStudio",
+        "title": "TestFly MCP: Start TestFly Recorder (Playwright-Style)",
+        "icon": "$(record)"
+      },
+      {
+        "command": "testfly-mcp.initProject",
+        "title": "TestFly MCP: Scaffold New Project (testfly init)",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "testfly-mcp.shardTests",
+        "title": "TestFly MCP: Run CI Test Sharder (testfly shard)",
+        "icon": "$(split-horizontal)"
+      },
+      {
         "command": "testfly-mcp.checkStatus",
-        "title": "TestFly MCP: Check Installation & Diagnostics"
+        "title": "TestFly MCP: Check Installation & Diagnostics",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "testfly-mcp.initConfig",
+        "title": "TestFly MCP: Initialize testfly.yml Config",
+        "icon": "$(gear)"
       },
       {
         "command": "testfly-mcp.install",
-        "title": "TestFly MCP: Install Server (from GitHub)"
+        "title": "TestFly MCP: Install Server"
       },
       {
         "command": "testfly-mcp.upgrade",
         "title": "TestFly MCP: Upgrade to Latest"
       },
       {
-        "command": "testfly-mcp.launchStudio",
-        "title": "TestFly MCP: Launch Interactive Web Studio"
-      },
-      {
-        "command": "testfly-mcp.initConfig",
-        "title": "TestFly MCP: Initialize testfly.yml Config"
+        "command": "testfly-mcp.refreshStatus",
+        "title": "TestFly MCP: Refresh Status",
+        "icon": "$(refresh)"
       },
       {
         "command": "testfly-mcp.openDocs",
-        "title": "TestFly MCP: Open Documentation"
+        "title": "TestFly MCP: Open Documentation",
+        "icon": "$(book)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "testfly-mcp.refreshStatus",
+          "when": "view == testfly.status",
+          "group": "navigation"
+        },
+        {
+          "command": "testfly-mcp.launchStudio",
+          "when": "view == testfly.quickActions",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

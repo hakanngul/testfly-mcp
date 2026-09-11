@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestFly Studio & Playwright-Style Inspector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-surface: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --border-focus: #6366f1;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-purple: #8b5cf6;
+            --accent-purple-hover: #7c3aed;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-blue: #38bdf8;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header Toolbar --- */
+        header {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            z-index: 20;
+            flex-shrink: 0;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .header-brand .logo-icon {
+            font-size: 18px;
+            color: var(--accent-purple);
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 9px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background-color: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .status-pill.recording {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .status-pill.recording .pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--accent-red);
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-pill.paused {
+            background-color: rgba(148, 163, 184, 0.15);
+            color: var(--text-secondary);
+            border-color: rgba(148, 163, 184, 0.3);
+        }
+
+        .status-pill.paused .pulse-dot {
+            background-color: var(--text-secondary);
+            animation: none;
+        }
+
+        .status-pill.pick_locator {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+        .status-pill.pick_locator .pulse-dot {
+            background-color: var(--accent-amber);
+        }
+
+        .status-pill.assert_visible, .status-pill.assert_text {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+        .status-pill.assert_visible .pulse-dot, .status-pill.assert_text .pulse-dot {
+            background-color: var(--accent-green);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .url-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            max-width: 320px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            user-select: none;
+        }
+
+        .btn:hover {
+            background-color: #2e3c54;
+            border-color: #475569;
+        }
+
+        .btn-active {
+            background-color: var(--accent-purple) !important;
+            border-color: var(--accent-purple-hover) !important;
+            color: #ffffff !important;
+        }
+
+        .btn-amber {
+            color: var(--accent-amber);
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+        .btn-amber:hover, .btn-amber.btn-active {
+            background-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-green {
+            color: var(--accent-green);
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+        .btn-green:hover, .btn-green.btn-active {
+            background-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-cyan {
+            color: var(--accent-blue);
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+        .btn-cyan:hover {
+            background-color: rgba(56, 189, 248, 0.2);
+        }
+
+        /* --- Main Layout --- */
+        .main-container {
+            display: grid;
+            grid-template-columns: 440px 1fr;
+            flex: 1;
+            height: calc(100vh - 49px);
+            overflow: hidden;
+            background-color: var(--bg-base);
+        }
+
+        /* --- Left Pane: Steps Timeline & Inspector --- */
+        .steps-pane {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background-color: var(--bg-surface);
+            overflow: hidden;
+        }
+
+        .pane-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex-shrink: 0;
+            background-color: var(--bg-surface);
+        }
+
+        .pane-header-badge {
+            font-size: 11px;
+            font-weight: normal;
+            color: var(--accent-green);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .pane-header-badge .live-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            animation: pulse 1.5s infinite;
+        }
+
+        .action-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .empty-steps-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            height: 100%;
+            color: var(--text-muted);
+            padding: 24px;
+            gap: 12px;
+        }
+
+        .empty-steps-icon {
+            font-size: 32px;
+            color: var(--accent-purple);
+            opacity: 0.8;
+        }
+
+        .empty-steps-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .empty-steps-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            max-width: 280px;
+        }
+
+        .action-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .action-card:hover {
+            border-color: #475569;
+            background-color: #243044;
+        }
+
+        .action-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .action-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-click { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); }
+        .tag-type { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+        .tag-navigate { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); }
+        .tag-assert { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .tag-select { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+
+        .btn-delete-step {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            transition: color 0.15s;
+        }
+        .btn-delete-step:hover {
+            color: var(--accent-red);
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+
+        .action-desc {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+
+        .action-code-pill {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            background-color: var(--bg-base);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #c7d2fe;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .card-inline-input {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: #38bdf8;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            outline: none;
+            width: 140px;
+            transition: all 0.15s ease;
+        }
+        .card-inline-input:focus {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+            width: 180px;
+        }
+
+        /* --- Bottom Locator Tester --- */
+        .locator-tester-box {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .locator-tester-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .locator-input-row {
+            display: flex;
+            align-items: center;
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 2px 8px;
+            gap: 6px;
+        }
+
+        .locator-input-row:focus-within {
+            border-color: var(--accent-purple);
+        }
+
+        .locator-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            outline: none;
+            padding: 5px 0;
+        }
+
+        .locator-action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 12px;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+        .locator-action-btn:hover {
+            color: var(--text-primary);
+            background-color: var(--bg-card);
+        }
+
+        /* --- Right Pane: Java Codegen Center --- */
+        .codegen-pane {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-base);
+            overflow: hidden;
+        }
+
+        .tabs-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 12px;
+            flex-shrink: 0;
+        }
+
+        .tabs-list {
+            display: flex;
+            gap: 4px;
+        }
+
+        .tab {
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent-purple);
+            font-weight: 600;
+            background-color: rgba(139, 92, 246, 0.08);
+        }
+
+        .code-container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background-color: var(--bg-base);
+        }
+
+        .code-view {
+            padding: 18px 20px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.65;
+            color: #e2e8f0;
+            white-space: pre;
+            tab-size: 4;
+            min-height: 100%;
+        }
+
+        .code-footer {
+            padding: 8px 16px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-surface);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        /* --- Save Modal --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 500px;
+            max-width: 90vw;
+            padding: 22px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .modal-input-group {
+            margin-bottom: 16px;
+        }
+
+        .modal-input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .modal-input-group input {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            outline: none;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Toolbar -->
+    <header>
+        <div class="header-brand">
+            <span class="logo-icon">✈️</span>
+            <span>TestFly Studio</span>
+            <div id="statusPill" class="status-pill recording">
+                <span class="pulse-dot"></span>
+                <span id="statusText">RECORDING</span>
+            </div>
+            <div id="targetUrlBadge" class="url-badge" title="Target companion URL">
+                <span>🌐</span>
+                <span id="targetUrlText">Connecting to Chrome...</span>
+            </div>
+        </div>
+
+        <div class="toolbar-actions">
+            <!-- Backward compatibility hook -->
+            <div id="embeddedBrowser" style="display:none;"></div>
+            <button id="btnRecordToggle" class="btn" title="Pause or resume interaction recording">
+                <span>⏸</span>
+                <span>Pause</span>
+            </button>
+            <button id="btnPickLocator" class="btn btn-amber" title="Hover & click any element in Chrome to inspect its TestFly locator">
+                <span>🎯</span>
+                <span>Pick Locator</span>
+            </button>
+            <button id="btnAssertVisible" class="btn btn-green" title="Click any element in Chrome to assert visibility">
+                <span>🛡️</span>
+                <span>Assert Visible</span>
+            </button>
+            <button id="btnAssertText" class="btn btn-green" title="Click any element in Chrome to assert inner text">
+                <span>📝</span>
+                <span>Assert Text</span>
+            </button>
+            <button id="btnAssertEnabled" class="btn btn-green" title="Click any element in Chrome to assert that it is enabled or disabled">
+                <span>⚡</span>
+                <span>Assert Enabled</span>
+            </button>
+            <button id="btnLaunchExternal" class="btn btn-cyan" title="Focus or launch Google Chrome Companion">
+                <span>🌐</span>
+                <span>Chrome Companion</span>
+            </button>
+            <button id="btnClear" class="btn" title="Clear recorded steps and reset codegen">
+                <span>🔄</span>
+                <span>Clear</span>
+            </button>
+            <button id="btnCopy" class="btn" title="Copy generated TestFly Java code">
+                <span>📋</span>
+                <span>Copy Code</span>
+            </button>
+            <button id="btnSave" class="btn btn-active" title="Save generated Java test directly into project directory">
+                <span>💾</span>
+                <span>Save to Project</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main 2-Column Split Workspace -->
+    <main class="main-container">
+        <!-- Left: Steps Timeline & Inspector -->
+        <section class="steps-pane">
+            <div class="pane-header">
+                <span>Recorded Steps (<span id="stepCount">0</span>)</span>
+                <span class="pane-header-badge">
+                    <span class="live-dot"></span>
+                    <span>Live Companion</span>
+                </span>
+            </div>
+
+            <div id="actionList" class="action-list">
+                <div class="empty-steps-card">
+                    <div class="empty-steps-icon">⚡</div>
+                    <div class="empty-steps-title">Ready to Record in Google Chrome</div>
+                    <div class="empty-steps-desc">
+                        Interact with the Chrome companion window on the left.
+                        Clicks, text entries, and assertions will stream here automatically.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Interactive Locator Inspector Bar -->
+            <div class="locator-tester-box">
+                <div class="locator-tester-title">
+                    <span>🎯 Smart Locator Tester</span>
+                    <span id="locatorMatchBadge" style="color: var(--text-muted);">Ready</span>
+                </div>
+                <div class="locator-input-row">
+                    <span style="color: var(--text-muted); font-size: 11px;">🔎</span>
+                    <input type="text" id="locatorInspectInput" class="locator-input" placeholder="Type locator (e.g. //h4, #login-button, [data-test='username'])" spellcheck="false" />
+                    <button id="btnCopyInspectedLocator" class="locator-action-btn" title="Copy locator to clipboard">📋</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Multi-Framework Java Codegen Center -->
+        <section class="codegen-pane">
+            <div class="tabs-header">
+                <div class="tabs-list">
+                    <div class="tab active" data-tab="pom">
+                        <span>📄</span>
+                        <span>Page Object (BasePage)</span>
+                    </div>
+                    <div class="tab" data-tab="testng">
+                        <span>🚀</span>
+                        <span>TestNG (BaseTest)</span>
+                    </div>
+                    <div class="tab" data-tab="junit5">
+                        <span>🧪</span>
+                        <span>JUnit 5 (BaseJUnit5Test)</span>
+                    </div>
+                    <div class="tab" data-tab="cucumber">
+                        <span>🥒</span>
+                        <span>Cucumber BDD</span>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
+                    ☕ Java 17+ / TestFly
+                </div>
+            </div>
+
+            <div class="code-container">
+                <pre id="codeView" class="code-view">// Waiting for user interactions in Google Chrome companion...</pre>
+            </div>
+
+            <div class="code-footer">
+                <span>Architecture: ThreadLocal Parallel + BasePage & BaseTest</span>
+                <span>Framework: TestFly Automation Suite</span>
+            </div>
+        </section>
+    </main>
+
+    <!-- Save Modal -->
+    <div id="saveModal" class="modal-overlay">
+        <div class="modal-card" style="width: 520px; max-width: 90vw;">
+            <div id="saveModalTitle" class="modal-title">💾 Save to Project</div>
+            <div id="saveModalDesc" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;"></div>
+            <div id="saveFilesPreview" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-family: var(--font-mono); font-size: 11px; color: #a5b4fc; line-height: 1.8;"></div>
+            <div class="modal-input-group">
+                <label id="savePathLabel">Target Relative Path</label>
+                <input type="text" id="savePathInput" value="" />
+            </div>
+            <div class="modal-actions">
+                <button id="btnCancelSave" class="btn">Cancel</button>
+                <button id="btnConfirmSave" class="btn btn-active">Save to Project</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let currentMode = 'record';
+        let currentTab = 'pom';
+        let recordedEvents = [];
+        let generatedCodes = {
+            pom: '// Waiting for user interactions in Google Chrome companion...',
+            testng: '// Waiting for user interactions in Google Chrome companion...',
+            junit5: '// Waiting for user interactions in Google Chrome companion...',
+            cucumber: '// Waiting for user interactions in Google Chrome companion...'
+        };
+
+        const statusPill = document.getElementById('statusPill');
+        const statusText = document.getElementById('statusText');
+        const targetUrlText = document.getElementById('targetUrlText');
+        const btnRecordToggle = document.getElementById('btnRecordToggle');
+        const btnPickLocator = document.getElementById('btnPickLocator');
+        const btnAssertVisible = document.getElementById('btnAssertVisible');
+        const btnAssertText = document.getElementById('btnAssertText');
+        const btnAssertEnabled = document.getElementById('btnAssertEnabled');
+        const btnLaunchExternal = document.getElementById('btnLaunchExternal');
+        const btnClear = document.getElementById('btnClear');
+        const btnCopy = document.getElementById('btnCopy');
+        const btnSave = document.getElementById('btnSave');
+        const actionList = document.getElementById('actionList');
+        const stepCount = document.getElementById('stepCount');
+        const codeView = document.getElementById('codeView');
+        const tabs = document.querySelectorAll('.tab');
+        const locatorInspectInput = document.getElementById('locatorInspectInput');
+        const locatorMatchBadge = document.getElementById('locatorMatchBadge');
+        const btnCopyInspectedLocator = document.getElementById('btnCopyInspectedLocator');
+
+        // Target URL from parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetUrl = urlParams.get('target') || urlParams.get('url') || 'https://www.saucedemo.com';
+        targetUrlText.textContent = targetUrl;
+
+        // --- Mode Switching ---
+        function setMode(mode) {
+            currentMode = mode;
+            fetch('/api/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: currentMode })
+            }).catch(() => {});
+
+            updateModeUI(mode);
+        }
+
+        function updateModeUI(mode) {
+            currentMode = mode;
+            btnPickLocator.classList.toggle('btn-active', mode === 'pick_locator');
+            btnAssertVisible.classList.toggle('btn-active', mode === 'assert_visible');
+            btnAssertText.classList.toggle('btn-active', mode === 'assert_text');
+            btnAssertEnabled.classList.toggle('btn-active', mode === 'assert_enabled');
+
+            statusPill.className = `status-pill ${mode}`;
+            if (mode === 'pause') {
+                statusText.textContent = 'PAUSED';
+                btnRecordToggle.innerHTML = '<span>🔴</span><span>Resume</span>';
+            } else if (mode === 'pick_locator') {
+                statusText.textContent = 'PICK LOCATOR';
+                btnRecordToggle.innerHTML = '<span>⏸</span><span>Pause</span>';
+            } else if (mode === 'assert_visible') {
+                statusText.textContent = 'ASSERT VISIBLE';
+                btnRecordToggle.innerHTML = '<span>⏸</span><span>Pause</span>';
+            } else if (mode === 'assert_text') {
+                statusText.textContent = 'ASSERT TEXT';
+                btnRecordToggle.innerHTML = '<span>⏸</span><span>Pause</span>';
+            } else if (mode === 'assert_enabled') {
+                statusText.textContent = 'ASSERT ENABLED';
+                btnRecordToggle.innerHTML = '<span>⏸</span><span>Pause</span>';
+            } else {
+                statusText.textContent = 'RECORDING';
+                btnRecordToggle.innerHTML = '<span>⏸</span><span>Pause</span>';
+            }
+        }
+
+        btnRecordToggle.addEventListener('click', () => {
+            setMode(currentMode === 'pause' ? 'record' : 'pause');
+        });
+
+        btnPickLocator.addEventListener('click', () => {
+            setMode(currentMode === 'pick_locator' ? 'record' : 'pick_locator');
+        });
+
+        btnAssertVisible.addEventListener('click', () => {
+            setMode(currentMode === 'assert_visible' ? 'record' : 'assert_visible');
+        });
+
+        btnAssertText.addEventListener('click', () => {
+            setMode(currentMode === 'assert_text' ? 'record' : 'assert_text');
+        });
+
+        btnAssertEnabled.addEventListener('click', () => {
+            setMode(currentMode === 'assert_enabled' ? 'record' : 'assert_enabled');
+        });
+
+        btnClear.addEventListener('click', () => {
+            if (confirm('Clear all recorded steps?')) {
+                fetch('/api/clear', { method: 'POST' });
+                recordedEvents = [];
+                renderActions();
+                codeView.textContent = '// Waiting for user interactions in Google Chrome companion...';
+            }
+        });
+
+        btnCopy.addEventListener('click', () => {
+            const code = codeView.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const orig = btnCopy.innerHTML;
+                btnCopy.innerHTML = '<span>✓</span><span>Copied!</span>';
+                setTimeout(() => btnCopy.innerHTML = orig, 1500);
+            });
+        });
+
+        btnLaunchExternal.addEventListener('click', () => {
+            btnLaunchExternal.innerHTML = '<span>⏳</span><span>Opening...</span>';
+            fetch('/api/browser/launch-external', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: targetUrl })
+            }).then(() => {
+                setTimeout(() => {
+                    btnLaunchExternal.innerHTML = '<span>🌐</span><span>Chrome Companion</span>';
+                }, 2000);
+            });
+        });
+
+        // --- Tabs ---
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+
+                if (currentTab === 'pom') savePathInput.value = 'src/test/java/com/example/tests/RecordedPage.java';
+                else if (currentTab === 'cucumber') savePathInput.value = 'src/test/resources/features/RecordedFeature.feature';
+                else savePathInput.value = 'src/test/java/com/example/tests/RecordedWebTest.java';
+
+                renderCode();
+            });
+        });
+
+        function renderCode() {
+            const code = generatedCodes[currentTab] || '// Waiting for user interactions in Google Chrome companion...';
+            codeView.textContent = code;
+        }
+
+        // --- Render Recorded Steps ---
+        function renderActions() {
+            stepCount.textContent = recordedEvents.length;
+
+            if (recordedEvents.length === 0) {
+                actionList.innerHTML = `
+                    <div class="empty-steps-card">
+                        <div class="empty-steps-icon">⚡</div>
+                        <div class="empty-steps-title">Ready to Record in Google Chrome</div>
+                        <div class="empty-steps-desc">
+                            Interact with the Chrome companion window on the left.
+                            Clicks, text entries, and assertions will stream here automatically.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            actionList.innerHTML = '';
+            recordedEvents.forEach((ev, idx) => {
+                const card = document.createElement('div');
+                card.className = 'action-card';
+
+                let tagClass = 'tag-click';
+                let tagText = 'Click';
+                let desc = ev.target_desc || ev.selector || 'Element';
+                let codeSnippet = ev.code || ev.selector || '';
+
+                if (ev.action === 'navigate') {
+                    tagClass = 'tag-navigate';
+                    tagText = 'Navigate';
+                    desc = ev.url;
+                    codeSnippet = `open("${ev.url}")`;
+                    targetUrlText.textContent = ev.url;
+                } else if (ev.action === 'click') {
+                    tagClass = 'tag-click';
+                    tagText = 'Click';
+                    desc = `Click ${ev.target_desc || ev.selector || ''}`;
+                } else if (ev.action === 'type_text') {
+                    tagClass = 'tag-type';
+                    tagText = 'Type';
+                    desc = `Type "${ev.text}" into ${ev.target_desc || ''}`;
+                    codeSnippet = `${ev.code || ev.selector}.fill("${ev.text}")`;
+                } else if (ev.action === 'select_option') {
+                    tagClass = 'tag-select';
+                    tagText = 'Select';
+                    desc = `Select "${ev.text}"`;
+                } else if (ev.action === 'assert_visible') {
+                    tagClass = 'tag-assert';
+                    tagText = 'Visible';
+                    desc = `Assert Visible: ${ev.target_desc || ''}`;
+                    codeSnippet = `assertThat(${ev.code}).isVisible()`;
+                } else if (ev.action === 'assert_text') {
+                    tagClass = 'tag-assert';
+                    tagText = 'Text';
+                    const expVal = (ev.expected || '').replace(/"/g, '&quot;');
+                    desc = `
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <span>Assert text:</span>
+                            <input type="text" class="card-inline-input" value="${expVal}" 
+                                   onchange="updateEventText(${idx}, this.value)" 
+                                   title="Click to edit expected text" />
+                        </div>
+                    `;
+                    const method = ev.exact === false ? 'containsText' : 'hasText';
+                    codeSnippet = `assertThat(${ev.code}).${method}("${ev.expected || ''}")`;
+                } else if (ev.action === 'assert_enabled') {
+                    tagClass = 'tag-assert';
+                    tagText = 'Enabled';
+                    desc = `Assert Enabled: ${ev.target_desc || ''}`;
+                    codeSnippet = `assertThat(${ev.code}).isEnabled()`;
+                } else if (ev.action === 'assert_disabled') {
+                    tagClass = 'tag-assert';
+                    tagText = 'Disabled';
+                    desc = `Assert Disabled: ${ev.target_desc || ''}`;
+                    codeSnippet = `assertThat(${ev.code}).isDisabled()`;
+                }
+
+                card.innerHTML = `
+                    <div class="action-card-header">
+                        <span class="action-tag ${tagClass}">${idx + 1}. ${tagText}</span>
+                        <button class="btn-delete-step" title="Delete this step" onclick="deleteStep(${idx})">×</button>
+                    </div>
+                    <div class="action-desc">${desc}</div>
+                    <div class="action-code-pill" title="${codeSnippet}">${codeSnippet}</div>
+                `;
+                actionList.appendChild(card);
+            });
+
+            actionList.scrollTop = actionList.scrollHeight;
+        }
+
+        function updateEventText(idx, newText) {
+            fetch('/api/event/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: idx, text: newText })
+            }).catch(() => {});
+        }
+
+        function deleteStep(idx) {
+            fetch('/api/event/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: idx })
+            }).catch(() => {});
+        }
+
+        // --- Save Modal ---
+        const saveModal = document.getElementById('saveModal');
+        const saveModalTitle = document.getElementById('saveModalTitle');
+        const saveModalDesc = document.getElementById('saveModalDesc');
+        const saveFilesPreview = document.getElementById('saveFilesPreview');
+        const savePathLabel = document.getElementById('savePathLabel');
+        const btnCancelSave = document.getElementById('btnCancelSave');
+        const btnConfirmSave = document.getElementById('btnConfirmSave');
+        const savePathInput = document.getElementById('savePathInput');
+
+        btnSave.addEventListener('click', () => {
+            const currentCode = generatedCodes[currentTab] || '';
+            const fileMatches = [...currentCode.matchAll(/(?:(?:\/\/|#)\s*=+\s*\n)?(?:(?:\/\/|#)\s*)?File:\s*([^\n\r]+)/g)];
+
+            if (currentTab === 'pom') {
+                saveModalTitle.textContent = '💾 Save Page Object & Test to Project';
+                saveModalDesc.textContent = 'Each class will be saved into its own file in your project structure:';
+                let previewHtml = '';
+                if (fileMatches.length >= 2) {
+                    previewHtml += `📄 <b>Page Object:</b> src/test/java/${fileMatches[0][1].trim()}<br>`;
+                    previewHtml += `🧪 <b>Test Class:</b> src/test/java/${fileMatches[1][1].trim()}`;
+                } else {
+                    previewHtml += `📄 <b>Page Object:</b> src/test/java/com/example/pages/HomePage.java<br>`;
+                    previewHtml += `🧪 <b>Test Class:</b> src/test/java/com/example/tests/HomeTest.java`;
+                }
+                saveFilesPreview.innerHTML = previewHtml;
+                saveFilesPreview.style.display = 'block';
+                savePathLabel.textContent = 'Project Directory / Path (optional):';
+                savePathInput.placeholder = 'Leave empty to auto-detect project root (or e.g. demo-testfly-mcp)';
+                savePathInput.value = '';
+            } else if (currentTab === 'cucumber') {
+                saveModalTitle.textContent = '💾 Save Cucumber BDD Suite to Project';
+                saveModalDesc.textContent = 'Feature and Step definitions will be separated into their standard locations:';
+                let previewHtml = '';
+                fileMatches.forEach(m => {
+                    const f = m[1].trim();
+                    if (f.endsWith('.feature')) {
+                        previewHtml += `🥒 <b>Feature:</b> ${f.startsWith('src/') ? f : 'src/test/resources/features/' + f}<br>`;
+                    } else if (f.includes('steps')) {
+                        previewHtml += `⚙️ <b>Steps:</b> src/test/java/${f}<br>`;
+                    } else {
+                        previewHtml += `🏃 <b>Runner:</b> src/test/java/${f}<br>`;
+                    }
+                });
+                if (!previewHtml) {
+                    previewHtml = `🥒 <b>Feature:</b> src/test/resources/features/recordedfeature.feature<br>⚙️ <b>Steps:</b> src/test/java/com/example/tests/steps/RecordedFeatureSteps.java<br>🏃 <b>Runner:</b> src/test/java/com/example/tests/RunCucumberTest.java`;
+                }
+                saveFilesPreview.innerHTML = previewHtml;
+                saveFilesPreview.style.display = 'block';
+                savePathLabel.textContent = 'Project Directory / Path (optional):';
+                savePathInput.placeholder = 'Leave empty to auto-detect project root (or e.g. demo-testfly-mcp)';
+                savePathInput.value = '';
+            } else {
+                saveModalTitle.textContent = currentTab === 'testng' ? '💾 Save TestNG Test' : '💾 Save JUnit 5 Test';
+                saveModalDesc.textContent = 'Saves the standalone test class to your test source folder:';
+                saveFilesPreview.innerHTML = `🚀 <b>Test File:</b> src/test/java/com/example/tests/RecordedWebTest.java`;
+                saveFilesPreview.style.display = 'block';
+                savePathLabel.textContent = 'Target File Relative Path:';
+                savePathInput.placeholder = 'src/test/java/com/example/tests/RecordedWebTest.java';
+                savePathInput.value = 'src/test/java/com/example/tests/RecordedWebTest.java';
+            }
+
+            saveModal.style.display = 'flex';
+        });
+
+        btnCancelSave.addEventListener('click', () => {
+            saveModal.style.display = 'none';
+        });
+
+        btnConfirmSave.addEventListener('click', () => {
+            const path = savePathInput.value.trim();
+
+            fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_path: path,
+                    tab: currentTab
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.saved_files && data.saved_files.length > 0) {
+                        const fileList = data.saved_files.map(f => '• ' + f).join('\n');
+                        alert(`✓ Successfully saved ${data.saved_files.length} file(s) to project:\n\n${fileList}`);
+                    } else {
+                        alert(`✓ File saved successfully to:\n${data.saved_path}`);
+                    }
+                    saveModal.style.display = 'none';
+                } else {
+                    alert(`Error saving file: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                alert(`Error saving file: ${err.message}`);
+            });
+        });
+
+        btnCopyInspectedLocator.addEventListener('click', () => {
+            const val = locatorInspectInput.value.trim();
+            if (!val) return;
+            navigator.clipboard.writeText(val).then(() => {
+                btnCopyInspectedLocator.textContent = '✓';
+                setTimeout(() => btnCopyInspectedLocator.textContent = '📋', 1200);
+            });
+        });
+
+        // --- Real-time SSE Connection ---
+        function connectSSE() {
+            const es = new EventSource('/api/stream');
+            es.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'state') {
+                        recordedEvents = data.events || [];
+                        generatedCodes = data.codes || generatedCodes;
+                        if (data.mode) updateModeUI(data.mode);
+                        renderActions();
+                        renderCode();
+                    } else if (data.type === 'new_event') {
+                        if (data.event) {
+                            recordedEvents.push(data.event);
+                            renderActions();
+                        }
+                        if (data.codes) {
+                            generatedCodes = data.codes;
+                            renderCode();
+                        }
+                        if (data.mode) updateModeUI(data.mode);
+                    } else if (data.type === 'update_event') {
+                        if (data.index !== undefined && data.event) {
+                            if (recordedEvents[data.index]) {
+                                recordedEvents[data.index] = data.event;
+                            } else {
+                                recordedEvents.push(data.event);
+                            }
+                            renderActions();
+                        }
+                        if (data.codes) {
+                            generatedCodes = data.codes;
+                            renderCode();
+                        }
+                        if (data.mode) updateModeUI(data.mode);
+                    }
+                } catch (err) {
+                    console.error('SSE Error:', err);
+                }
+            };
+            es.onerror = () => {
+                es.close();
+                setTimeout(connectSSE, 2000);
+            };
+        }
+
+        connectSSE();
+    </script>
+</body>
+</html>

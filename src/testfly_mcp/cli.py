@@ -108,11 +108,12 @@ def cmd_init(
     """Scaffolds a new TestFly test automation project."""
     from testfly_mcp.scaffold import scaffold_project
 
-    dest = target_dir or (Path.cwd() / project_name)
-    art_id = artifact_id or project_name.lower().replace(" ", "-").replace("_", "-")
+    dest = target_dir or (Path.cwd() if project_name in (".", "") else Path.cwd() / project_name)
+    clean_name = dest.resolve().name if project_name in (".", "") else project_name
+    art_id = artifact_id or clean_name.lower().replace(" ", "-").replace("_", "-")
 
     print("\n========================================================")
-    print(f"✈  TestFly Project Generator — Scaffolding '{project_name}'")
+    print(f"✈  TestFly Project Generator — Scaffolding '{clean_name}'")
     print("========================================================")
     print(f"   Framework : {framework.upper()}")
     print(f"   Test Type : {test_type.upper()}")
@@ -123,7 +124,7 @@ def cmd_init(
 
     scaffold_project(
         target_dir=dest,
-        project_name=project_name,
+        project_name=clean_name,
         framework=framework,
         test_type=test_type,
         group_id=group_id,
@@ -133,15 +134,34 @@ def cmd_init(
 
     print("✓ Project created successfully!")
     print("\nNext steps:")
-    rel_path = dest.name if target_dir is None else str(dest)
-    print(f"  cd {rel_path}")
+    rel_path = "." if (target_dir is None and project_name in (".", "")) else (dest.name if target_dir is None else str(dest))
+    if rel_path != ".":
+        print(f"  cd {rel_path}")
     print("  mvn test (or run tests from your IDE)\n")
 
 
+def cmd_record(url: Optional[str] = None, port: int = 8765, open_inspector: bool = True):
+    """Starts the TestFly Recorder & Playwright-style Inspector."""
+    from testfly_mcp.recorder import start_recorder
+    # Check if testfly.yml exists in current directory for default baseUrl
+    if not url:
+        yml = Path.cwd() / "testfly.yml"
+        if yml.exists():
+            try:
+                for line in yml.read_text(encoding="utf-8").splitlines():
+                    if "baseUrl:" in line:
+                        found_url = line.split("baseUrl:", 1)[1].strip().strip('"').strip("'")
+                        if found_url:
+                            url = found_url
+                        break
+            except Exception:
+                pass
+    start_recorder(start_url=url, port=port, open_inspector=open_inspector)
+
+
 def cmd_ui(port: int = 8765, open_browser: bool = True):
-    """Starts the Interactive Studio Web UI."""
-    from testfly_mcp.ui.server import start_ui_server
-    start_ui_server(port=port, open_browser=open_browser)
+    """Starts the TestFly Recorder Inspector (compatibility alias)."""
+    cmd_record(port=port, open_inspector=open_browser)
 
 
 def cmd_shard(
@@ -216,7 +236,7 @@ def cmd_interactive():
         print(f"✈  TestFly CLI & MCP Server (v{ver}) — Interactive Menu")
         print("========================================================")
         print("  [1] Scaffold New TestFly Project (TestNG / JUnit 5 / Cucumber)")
-        print("  [2] Launch Interactive Web Studio (http://127.0.0.1:8765)")
+        print("  [2] Start TestFly Recorder (Playwright-Style Codegen in Chrome)")
         print("  [3] Run Environment Doctor (Diagnostics)")
         print("  [4] List MCP Tools (88 tools)")
         print("  [5] Generate testfly.yml in Current Directory")
@@ -239,7 +259,8 @@ def cmd_interactive():
             p_url = input("Base URL [https://example.com]: ").strip() or "https://example.com"
             cmd_init(project_name=p_name, framework=p_fw, test_type=p_type, base_url=p_url)
         elif choice == "2":
-            cmd_ui()
+            p_url = input("Target URL [https://example.com]: ").strip() or "https://example.com"
+            cmd_record(url=p_url)
             break
         elif choice == "3":
             cmd_doctor()
@@ -270,7 +291,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n"
                "  testfly init my-suite --framework testng --type web\n"
                "  testfly init my-api-tests --framework junit5 --type api\n"
-               "  testfly studio                  # Launch interactive web studio in browser\n"
+               "  testfly record https://example.com # Record browser actions & generate TestFly Java tests\n"
+               "  testfly studio                  # Launch TestFly Recorder Inspector in browser\n"
                "  testfly doctor                  # Verify Python, Selenium, Chrome, and IDE setup\n"
                "  testfly tools                   # List all available MCP tools\n"
                "  testfly init-config             # Generate standard testfly.yml in current directory\n"
@@ -308,14 +330,26 @@ def build_parser() -> argparse.ArgumentParser:
     tools_p = subparsers.add_parser("tools", help="List all available MCP tools")
     tools_p.add_argument("--search", "-s", type=str, help="Filter tools by name or description keyword")
 
-    # ui & studio
-    ui_p = subparsers.add_parser("ui", help="Launch interactive web studio in default browser")
-    ui_p.add_argument("--port", "-p", type=int, default=8765, help="Port for web studio (default: 8765)")
-    ui_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
+    # record, codegen, studio, ui
+    record_p = subparsers.add_parser("record", help="Start Playwright-style browser recorder & live TestFly Java codegen inspector")
+    record_p.add_argument("url", nargs="?", help="Target URL to start recording (default: https://example.com or testfly.yml baseUrl)")
+    record_p.add_argument("--port", "-p", type=int, default=8765, help="Inspector port (default: 8765)")
+    record_p.add_argument("--no-browser", action="store_true", help="Do not open inspector automatically")
 
-    studio_p = subparsers.add_parser("studio", help="Launch interactive web studio in default browser (alias for ui)")
+    codegen_p = subparsers.add_parser("codegen", help="Start Playwright-style browser recorder (alias for record)")
+    codegen_p.add_argument("url", nargs="?", help="Target URL to start recording")
+    codegen_p.add_argument("--port", "-p", type=int, default=8765, help="Inspector port (default: 8765)")
+    codegen_p.add_argument("--no-browser", action="store_true", help="Do not open inspector automatically")
+
+    studio_p = subparsers.add_parser("studio", help="Start Playwright-style browser recorder & inspector (alias for record)")
+    studio_p.add_argument("url", nargs="?", help="Target URL to start recording")
     studio_p.add_argument("--port", "-p", type=int, default=8765, help="Port for web studio (default: 8765)")
     studio_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
+
+    ui_p = subparsers.add_parser("ui", help="Start Playwright-style browser recorder & inspector (alias for record)")
+    ui_p.add_argument("url", nargs="?", help="Target URL to start recording")
+    ui_p.add_argument("--port", "-p", type=int, default=8765, help="Port for web studio (default: 8765)")
+    ui_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
 
     # shard
     shard_p = subparsers.add_parser("shard", help="Split test suite across parallel CI nodes using LPT bin-packing")
@@ -361,8 +395,12 @@ def main_cli(args: Optional[List[str]] = None):
         cmd_doctor()
     elif parsed.subcommand == "tools":
         cmd_tools(search=getattr(parsed, "search", None))
-    elif parsed.subcommand in ("ui", "studio"):
-        cmd_ui(port=parsed.port, open_browser=not parsed.no_browser)
+    elif parsed.subcommand in ("record", "codegen", "ui", "studio"):
+        cmd_record(
+            url=getattr(parsed, "url", None),
+            port=parsed.port,
+            open_inspector=not parsed.no_browser,
+        )
     elif parsed.subcommand == "shard":
         cmd_shard(
             total=parsed.total,

@@ -981,13 +981,13 @@ public class {test_name} {{
         sep = "=" * 60
         return (
             recommendation_banner(framework) +
-            f"{sep}\n"
-            f"File: {pages_package.replace('.', '/')}/{page_name}.java\n"
-            f"{sep}\n"
+            f"// {sep}\n"
+            f"// File: {pages_package.replace('.', '/')}/{page_name}.java\n"
+            f"// {sep}\n"
             f"{page_code}\n\n"
-            f"{sep}\n"
-            f"File: {tests_package.replace('.', '/')}/{test_name}.java\n"
-            f"{sep}\n"
+            f"// {sep}\n"
+            f"// File: {tests_package.replace('.', '/')}/{test_name}.java\n"
+            f"// {sep}\n"
             f"{test_code}"
         )
 
@@ -1060,9 +1060,25 @@ public class {test_name} {{
             return self._to_camel("_".join(selector.split()[:2]).lower())
         return "element"
 
+    _JAVA_RESERVED = {
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+        "class", "const", "continue", "default", "do", "double", "else", "enum",
+        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
+        "import", "instanceof", "int", "interface", "long", "native", "new",
+        "package", "private", "protected", "public", "return", "short", "static",
+        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "try", "void", "volatile", "while", "true", "false", "null",
+        "record", "var", "yield"
+    }
+
     def _to_camel(self, s: str) -> str:
         parts = [p for p in re.split(r"[_\-\s]+", s.strip()) if p]
-        return (parts[0].lower() + "".join(p.capitalize() for p in parts[1:])) if parts else "element"
+        name = (parts[0].lower() + "".join(p.capitalize() for p in parts[1:])) if parts else "element"
+        if name and name[0].isdigit():
+            name = f"el{name}"
+        if name.lower() in self._JAVA_RESERVED:
+            name = f"{name}Element"
+        return name
 
     def _build_element_map(self, log: list) -> dict:
         """Return ordered dict: field_name → {selector, by, actions: set}."""
@@ -1478,6 +1494,9 @@ public class {test_name} {{
         sel = (selector or "").strip()
         q = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
 
+        if by == "text":
+            return f'{self._fac("text", static_ctx)}("{q(sel)}")'
+
         if by == "link":
             return self._role_expr("LINK", sel, static_ctx)
 
@@ -1494,9 +1513,11 @@ public class {test_name} {{
                 if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
                     return self._role_expr("HEADING", txt, static_ctx, tag[1])
                 return f'{self._fac("text", static_ctx)}("{q(txt)}")'
-            idm = re.search(r"@id=['\"]([^'\"]+)['\"]", sel)
-            if idm:
-                return self._by_wrap(f'By.id("{q(idm.group(1))}")', static_ctx)
+            # Only collapse to By.id if the xpath is strictly targeting that element itself by @id
+            # e.g. //*[@id='foo'] or //div[@id='foo'] — NOT descendant queries like //*[@id='foo']//h4
+            if re.fullmatch(r"^/{0,2}(?:\*|[a-zA-Z0-9_-]+)\[\s*@id=['\"]([^'\"]+)['\"]\s*\]$", sel):
+                id_val = re.findall(r"@id=['\"]([^'\"]+)['\"]", sel)[0]
+                return self._by_wrap(f'By.id("{q(id_val)}")', static_ctx)
             return self._by_wrap(f'By.xpath("{q(sel)}")', static_ctx)
 
         if by == "css":
@@ -1700,9 +1721,13 @@ public class {test_name} {{
             return [f"assertThat({loc}).isVisible();"]
         if action == "assert_hidden":
             return [f"assertThat({loc}).isHidden();"]
+        if action == "assert_enabled":
+            return [f"assertThat({loc}).isEnabled();"]
+        if action == "assert_disabled":
+            return [f"assertThat({loc}).isDisabled();"]
         if action == "assert_text":
             exp = q(entry.get("expected", ""))
-            method = "hasText" if entry.get("exact") else "containsText"
+            method = "containsText" if entry.get("exact") is False else "hasText"
             return [f'assertThat({loc}).{method}("{exp}");']
         if action == "assert_attribute":
             attr = q(entry.get("attribute", ""))
@@ -1931,17 +1956,17 @@ public class {test_name} {{
             sep = "=" * 60
             return (
                 recommendation_banner(framework) +
-                f"{sep}\n"
-                f"File: src/test/resources/features/{feature_file}\n"
-                f"{sep}\n"
+                f"# {sep}\n"
+                f"# File: src/test/resources/features/{feature_file}\n"
+                f"# {sep}\n"
                 f"{feature}\n\n"
-                f"{sep}\n"
-                f"File: {steps_package.replace('.', '/')}/{steps_class}.java\n"
-                f"{sep}\n"
+                f"// {sep}\n"
+                f"// File: {steps_package.replace('.', '/')}/{steps_class}.java\n"
+                f"// {sep}\n"
                 f"{steps}\n\n"
-                f"{sep}\n"
-                f"File: {package.replace('.', '/')}/{runner_class}.java\n"
-                f"{sep}\n"
+                f"// {sep}\n"
+                f"// File: {package.replace('.', '/')}/{runner_class}.java\n"
+                f"// {sep}\n"
                 f"{runner}"
             )
         else:
@@ -1949,13 +1974,13 @@ public class {test_name} {{
             sep = "=" * 60
             return (
                 recommendation_banner(framework) +
-                f"{sep}\n"
-                f"File: src/test/resources/features/{feature_file}\n"
-                f"{sep}\n"
+                f"# {sep}\n"
+                f"# File: src/test/resources/features/{feature_file}\n"
+                f"# {sep}\n"
                 f"{feature}\n\n"
-                f"{sep}\n"
-                f"File: {steps_package.replace('.', '/')}/{steps_class}.java\n"
-                f"{sep}\n"
+                f"// {sep}\n"
+                f"// File: {steps_package.replace('.', '/')}/{steps_class}.java\n"
+                f"// {sep}\n"
                 f"{steps}"
             )
 
@@ -2016,6 +2041,16 @@ public class {class_name} extends BaseCucumberTest {{
             return f"{prefix} I navigate forward"
         elif action == "refresh":
             return f"{prefix} I refresh the page"
+        elif action == "assert_visible":
+            return f'Then the {readable} should be visible'
+        elif action == "assert_hidden":
+            return f'Then the {readable} should be hidden'
+        elif action == "assert_enabled":
+            return f'Then the {readable} should be enabled'
+        elif action == "assert_disabled":
+            return f'Then the {readable} should be disabled'
+        elif action == "assert_text":
+            return f'Then the {readable} should have text "{entry.get("expected", "")}"'
         return None
 
     def _gherkin_feature(self, feature_name: str, scenario: str,
@@ -2299,6 +2334,50 @@ public class {class_name} extends BaseCucumberTest {{
                         f'{i}@And("I refresh the page")\n'
                         f'{i}public void iRefreshThePage() {{\n'
                         f'{i}{i}getDriver().navigate().refresh();\n'
+                        f'{i}}}'
+                    )
+            elif action == "assert_visible":
+                key = f"assert_visible_{name}"
+                if key not in seen:
+                    seen.add(key)
+                    method = self._to_camel(f"the_{name}_should_be_visible")
+                    methods.append(
+                        f'{i}@Then("the {readable} should be visible")\n'
+                        f'{i}public void {method}() {{\n'
+                        f'{i}{i}assertThat({loc_for(name, entry)}).isVisible();\n'
+                        f'{i}}}'
+                    )
+            elif action == "assert_enabled":
+                key = f"assert_enabled_{name}"
+                if key not in seen:
+                    seen.add(key)
+                    method = self._to_camel(f"the_{name}_should_be_enabled")
+                    methods.append(
+                        f'{i}@Then("the {readable} should be enabled")\n'
+                        f'{i}public void {method}() {{\n'
+                        f'{i}{i}assertThat({loc_for(name, entry)}).isEnabled();\n'
+                        f'{i}}}'
+                    )
+            elif action == "assert_disabled":
+                key = f"assert_disabled_{name}"
+                if key not in seen:
+                    seen.add(key)
+                    method = self._to_camel(f"the_{name}_should_be_disabled")
+                    methods.append(
+                        f'{i}@Then("the {readable} should be disabled")\n'
+                        f'{i}public void {method}() {{\n'
+                        f'{i}{i}assertThat({loc_for(name, entry)}).isDisabled();\n'
+                        f'{i}}}'
+                    )
+            elif action == "assert_text":
+                key = f"assert_text_{name}"
+                if key not in seen:
+                    seen.add(key)
+                    method = self._to_camel(f"the_{name}_should_have_text")
+                    methods.append(
+                        f'{i}@Then("the {readable} should have text {{string}}")\n'
+                        f'{i}public void {method}(String expected) {{\n'
+                        f'{i}{i}assertThat({loc_for(name, entry)}).hasText(expected);\n'
                         f'{i}}}'
                     )
 
