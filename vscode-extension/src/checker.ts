@@ -1,102 +1,90 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { ActionCacheService } from './actionCacheService';
+import { RemediationService } from './remediationService';
 
 const execAsync = promisify(exec);
 
-export interface DiagnosticResult {
-    installed: boolean;
-    command: string;
-    version?: string;
-    pythonPath?: string;
+export interface EnvironmentDiagnostics {
+    javaInstalled: boolean;
+    javaVersion?: string;
+    mavenInstalled: boolean;
+    mavenVersion?: string;
+    nodeInstalled: boolean;
+    nodeVersion?: string;
+    hasTestFlyYml: boolean;
+    hasPomXml: boolean;
+    actionCacheCount: number;
+    remediationPatchCount: number;
     details: string;
 }
 
-export async function isInstalled(): Promise<boolean> {
-    const checks = [
-        'python3 -c "import testfly_mcp"',
-        'python -c "import testfly_mcp"',
-        'pip show testfly-mcp',
-        'pip3 show testfly-mcp',
-        'uv pip show testfly-mcp',
-        'python3 -c "import selenium_mcp"',
-        'python -c "import selenium_mcp"',
-        'pip show seleniumboot-mcp',
-        'pip3 show seleniumboot-mcp',
-    ];
-    for (const cmd of checks) {
+export class Checker {
+    public static async getDiagnostics(workspaceRoot?: string): Promise<EnvironmentDiagnostics> {
+        let javaInstalled = false;
+        let javaVersion: string | undefined;
         try {
-            await execAsync(cmd);
-            return true;
-        } catch {
-            // try next
-        }
-    }
-    return false;
-}
+            const { stdout, stderr } = await execAsync('java -version');
+            const output = stderr || stdout;
+            javaInstalled = true;
+            const match = output.match(/version\s+"([^"]+)"/);
+            javaVersion = match ? match[1] : output.split('\n')[0].trim();
+        } catch {}
 
-export async function resolveCommand(): Promise<string> {
-    const candidates = ['testfly-mcp', 'testfly-mcp3', 'seleniumboot-mcp', 'seleniumboot-mcp3'];
-    for (const cmd of candidates) {
+        let mavenInstalled = false;
+        let mavenVersion: string | undefined;
         try {
-            const { stdout } = await execAsync(
-                process.platform === 'win32' ? `where ${cmd}` : `which ${cmd}`
-            );
-            const resolved = stdout.trim().split('\n')[0].trim();
-            if (resolved) return resolved;
-        } catch {
-            // try next
-        }
-    }
-    return 'testfly-mcp'; // fallback — rely on PATH
-}
+            const { stdout } = await execAsync('mvn -version');
+            mavenInstalled = true;
+            mavenVersion = stdout.split('\n')[0].trim();
+        } catch {}
 
-export async function getDiagnosticReport(): Promise<DiagnosticResult> {
-    const installed = await isInstalled();
-    const command = await resolveCommand();
-
-    let version: string | undefined;
-    try {
-        const { stdout } = await execAsync('python3 -c "import testfly_mcp; from importlib.metadata import version; print(version(\'testfly-mcp\'))"');
-        version = stdout.trim();
-    } catch {
+        let nodeInstalled = false;
+        let nodeVersion: string | undefined;
         try {
-            const { stdout } = await execAsync('python3 -c "import selenium_mcp; from importlib.metadata import version; print(version(\'seleniumboot-mcp\'))"');
-            version = stdout.trim();
-        } catch {
-            // version unavailable
+            const { stdout } = await execAsync('node -v');
+            nodeInstalled = true;
+            nodeVersion = stdout.trim();
+        } catch {}
+
+        let hasTestFlyYml = false;
+        let hasPomXml = false;
+        let actionCacheCount = 0;
+        let remediationPatchCount = 0;
+
+        if (workspaceRoot) {
+            hasTestFlyYml = fs.existsSync(path.join(workspaceRoot, 'testfly.yml')) ||
+                            fs.existsSync(path.join(workspaceRoot, 'testfly.yaml'));
+            hasPomXml = fs.existsSync(path.join(workspaceRoot, 'pom.xml'));
+            actionCacheCount = ActionCacheService.readCache(workspaceRoot).length;
+            remediationPatchCount = RemediationService.listPatches(workspaceRoot).length;
         }
+
+        const lines = [
+            `Java (JDK): ${javaInstalled ? `Installed (${javaVersion})` : 'Not Found (Java 21 recommended)'}`,
+            `Maven: ${mavenInstalled ? `Installed (${mavenVersion})` : 'Not Found in PATH'}`,
+            `Node.js: ${nodeInstalled ? `Installed (${nodeVersion})` : 'Not Found in PATH'}`,
+            `Workspace testfly.yml: ${hasTestFlyYml ? 'Present (✓)' : 'Missing (Use Init Config)'}`,
+            `Workspace pom.xml: ${hasPomXml ? 'Present (✓)' : 'Missing'}`,
+            `Cached AI Goals (act): ${actionCacheCount}`,
+            `Pending Self-Healing Patches: ${remediationPatchCount}`
+        ];
+
+        return {
+            javaInstalled,
+            javaVersion,
+            mavenInstalled,
+            mavenVersion,
+            nodeInstalled,
+            nodeVersion,
+            hasTestFlyYml,
+            hasPomXml,
+            actionCacheCount,
+            remediationPatchCount,
+            details: lines.join('\n')
+        };
     }
-
-    let pythonPath: string | undefined;
-    try {
-        const { stdout } = await execAsync(process.platform === 'win32' ? 'where python' : 'which python3 || which python');
-        pythonPath = stdout.trim().split('\n')[0].trim();
-    } catch {
-        // python unavailable
-    }
-
-    const lines = [
-        `Installed: ${installed ? 'Yes (✓)' : 'No (✗)'}`,
-        `CLI Command: ${command}`,
-        `Package Version: ${version || 'Unknown / Not detected'}`,
-        `Python Interpreter: ${pythonPath || 'Not found'}`,
-    ];
-
-    return {
-        installed,
-        command,
-        version,
-        pythonPath,
-        details: lines.join('\n')
-    };
-}
-
-export function openTerminalAndRun(command: string, name: string = 'TestFly MCP'): void {
-    let terminal = vscode.window.terminals.find(t => t.name === name);
-    if (!terminal) {
-        terminal = vscode.window.createTerminal(name);
-    }
-    terminal.show();
-    terminal.sendText(command);
 }

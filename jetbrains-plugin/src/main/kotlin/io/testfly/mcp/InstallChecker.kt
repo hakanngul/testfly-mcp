@@ -2,34 +2,24 @@ package io.testfly.mcp
 
 object InstallChecker {
 
-    fun isInstalled(): Boolean {
-        val checks = listOf(
-            listOf("python3", "-c", "import testfly_mcp"),
-            listOf("python", "-c", "import testfly_mcp"),
-            listOf("pip", "show", "testfly-mcp"),
-            listOf("pip3", "show", "testfly-mcp"),
-            listOf("python3", "-c", "import selenium_mcp"),
-            listOf("python", "-c", "import selenium_mcp"),
-            listOf("pip", "show", "seleniumboot-mcp"),
-            listOf("pip3", "show", "seleniumboot-mcp"),
-        )
-        return checks.any { runSilently(it) }
+    fun isNodeInstalled(): Boolean {
+        val cmd = if (isWindows()) listOf("cmd", "/c", "node -v") else listOf("node", "-v")
+        return runSilently(cmd)
     }
 
-    fun resolveCommand(): String? {
-        val candidates = listOf("testfly-mcp", "testfly-mcp3", "seleniumboot-mcp", "seleniumboot-mcp3")
-        for (cmd in candidates) {
-            val which = if (isWindows()) listOf("where", cmd) else listOf("which", cmd)
-            val output = runCapture(which)?.trim()
-            if (!output.isNullOrEmpty()) return output.lines().first().trim()
-        }
-        return null
+    fun isNpxInstalled(): Boolean {
+        val cmd = if (isWindows()) listOf("cmd", "/c", "npx -v") else listOf("npx", "-v")
+        return runSilently(cmd)
     }
 
-    fun getInstalledVersion(): String? {
-        val script = "import testfly_mcp; from importlib.metadata import version; print(version('testfly-mcp'))"
-        return runCapture(listOf("python3", "-c", script))?.trim()
-            ?: runCapture(listOf("python", "-c", script))?.trim()
+    fun isJava21Installed(): Boolean {
+        val cmd = listOf("java", "-version")
+        val out = runCapture(cmd) ?: return false
+        return out.contains("21") || out.contains("22") || out.contains("23") || out.contains("24")
+    }
+
+    fun resolveCommand(): String {
+        return "npx -y @testfly/mcp"
     }
 
     private fun runSilently(cmd: List<String>): Boolean = try {

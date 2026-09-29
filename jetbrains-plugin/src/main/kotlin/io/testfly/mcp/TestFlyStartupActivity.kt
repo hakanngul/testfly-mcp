@@ -5,25 +5,22 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
+import java.io.File
 
 class TestFlyStartupActivity : ProjectActivity {
 
     override suspend fun execute(project: Project) {
-        val installed = InstallChecker.isInstalled()
+        val basePath = project.basePath ?: return
+        val hasYml = File(basePath, "testfly.yml").exists() || File(basePath, "testfly.yaml").exists()
 
-        if (!installed) {
+        if (!hasYml) {
             val notification = NotificationGroupManager.getInstance()
                 .getNotificationGroup(NOTIFICATION_GROUP)
                 ?.createNotification(
-                    "TestFly MCP",
-                    "<b>testfly-mcp</b> is not installed. Install it to enable browser automation with JetBrains AI Assistant.",
-                    NotificationType.WARNING
+                    "TestFly Studio",
+                    "Welcome to TestFly Studio! Configure your project with <code>testfly.yml</code> to enable autonomous testing and Playwright MCP.",
+                    NotificationType.INFORMATION
                 )
-
-            notification?.addAction(NotificationAction.createSimple("Install via pip") {
-                InstallAction().actionPerformed(createDummyEvent(project))
-                notification.expire()
-            })
 
             notification?.addAction(NotificationAction.createSimple("Initialize testfly.yml") {
                 InitConfigAction().actionPerformed(createDummyEvent(project))
@@ -38,23 +35,13 @@ class TestFlyStartupActivity : ProjectActivity {
             return
         }
 
-        val command = InstallChecker.resolveCommand() ?: "testfly-mcp"
-
         if (!MCPRegistrar.isRegistered()) {
-            val registered = MCPRegistrar.register(command)
+            val registered = MCPRegistrar.register("npx", "-y @testfly/mcp")
             if (registered) {
                 showNotification(
                     project,
-                    "TestFly MCP registered with AI Assistant. <b>Restart the IDE</b> to activate.",
+                    "TestFly MCP Bridge registered with AI Assistant. <b>Restart the IDE</b> to activate.",
                     NotificationType.INFORMATION
-                )
-            } else {
-                showNotification(
-                    project,
-                    "TestFly MCP is installed but could not be auto-registered. " +
-                    "Go to <b>Tools → TestFly MCP → Register MCP Server</b> or add it manually " +
-                    "in <i>Settings → Tools → AI Assistant → MCP Servers</i>.",
-                    NotificationType.WARNING
                 )
             }
         }
@@ -63,7 +50,7 @@ class TestFlyStartupActivity : ProjectActivity {
     private fun showNotification(project: Project, content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup(NOTIFICATION_GROUP)
-            ?.createNotification("TestFly MCP", content, type)
+            ?.createNotification("TestFly Studio", content, type)
             ?.notify(project)
     }
 

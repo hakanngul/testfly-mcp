@@ -66,3 +66,7 @@ coverage.xml
 # Internal code review / audit reports — not for public repo
 FINDINGS.md
 REVIEW.md
+
+# Trash / Removed legacy
+.trash/
+node_modules/

@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import { TOOLS_DATA, ToolMetadata } from './toolsData';
-import { isInstalled, resolveCommand } from './checker';
-import { isClaudeCodeRegistered } from './registrar';
+import { Checker } from './checker';
+import { ActionCacheService, ActionPlanModel } from './actionCacheService';
+import { RemediationService, RemediationPatch } from './remediationService';
+import { McpRegistrar } from './registrar';
 
 export class QuickActionItem extends vscode.TreeItem {
     constructor(
@@ -30,46 +29,52 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
     getChildren(): Thenable<QuickActionItem[]> {
         return Promise.resolve([
             new QuickActionItem(
-                'Start TestFly Studio (Embedded Browser & Codegen)',
-                'testfly-mcp.launchStudio',
-                'record',
-                'Open all-in-one studio with embedded interactive browser & live TestFly Java codegen'
-            ),
-            new QuickActionItem(
-                'Scaffold New Project (testfly init)',
-                'testfly-mcp.initProject',
-                'file-code',
-                'Interactive wizard to generate a new TestFly automation project'
-            ),
-            new QuickActionItem(
-                'Run CI Test Sharder (testfly shard)',
-                'testfly-mcp.shardTests',
-                'split-horizontal',
-                'Calculate optimal parallel CI test partitions using LPT Bin-Packing'
-            ),
-            new QuickActionItem(
-                'Run Environment Doctor',
-                'testfly-mcp.checkStatus',
-                'pulse',
-                'Diagnose Python, Selenium, Chrome, and AI Assistant setups'
-            ),
-            new QuickActionItem(
-                'Initialize testfly.yml',
-                'testfly-mcp.initConfig',
-                'gear',
-                'Create standard testfly.yml in the current workspace'
-            ),
-            new QuickActionItem(
-                'Register with AI Assistants',
-                'testfly-mcp.register',
+                '⚡ 1-Click MCP Setup (Cursor, Claude, Copilot)',
+                'testfly.multiMcpSetup',
                 'hubot',
-                'Configure Claude Code (~/.claude/settings.json) and GitHub Copilot'
+                'Configure Playwright MCP and TestFly Bridge across all AI assistants'
             ),
             new QuickActionItem(
-                'Open Documentation',
-                'testfly-mcp.openDocs',
+                '🎯 Open Action Cache Explorer',
+                'testfly.openActionCache',
+                'zap',
+                'View and manage compiled act("Goal") plans in .testfly/action-cache.json'
+            ),
+            new QuickActionItem(
+                '🩹 AI Self-Healing Patch Reviewer',
+                'testfly.openPatchReviewer',
+                'tools',
+                'Review and apply git diff patches from target/remediations/'
+            ),
+            new QuickActionItem(
+                '⚙️ Visual testfly.yml Editor',
+                'testfly.openVisualConfig',
+                'gear',
+                'Open interactive configuration editor for testfly.yml'
+            ),
+            new QuickActionItem(
+                '🚀 Scaffold Java 21 Project',
+                'testfly.initProject',
+                'file-code',
+                'Generate modern pom.xml, testfly.yml, and smoke test'
+            ),
+            new QuickActionItem(
+                '📊 Run CI Test Sharder',
+                'testfly.shardTests',
+                'split-horizontal',
+                'Partition test suites across parallel CI nodes with LPT algorithm'
+            ),
+            new QuickActionItem(
+                '🩺 Check Environment Diagnostics',
+                'testfly.checkStatus',
+                'pulse',
+                'Check JDK, Maven, Node, and workspace configuration'
+            ),
+            new QuickActionItem(
+                '📖 Open Documentation',
+                'testfly.openDocs',
                 'book',
-                'Browse TestFly and MCP guides'
+                'Browse TestFly guides and API docs'
             )
         ]);
     }
@@ -90,8 +95,8 @@ export class StatusItem extends vscode.TreeItem {
 }
 
 export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<StatusItem | undefined | void> = new vscode.EventEmitter<StatusItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<StatusItem | undefined | void> = this._onDidChangeTreeData.event;
+    private _onDidChangeTreeData = new vscode.EventEmitter<StatusItem | undefined | void>();
+    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
@@ -102,93 +107,91 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
     }
 
     async getChildren(): Promise<StatusItem[]> {
-        const items: StatusItem[] = [];
-
-        // 1. CLI / Server Installation
-        const installed = await isInstalled();
-        const cmd = await resolveCommand();
-        if (installed) {
-            items.push(new StatusItem('TestFly CLI', `${cmd} (Ready)`, 'pass-filled'));
-        } else {
-            items.push(new StatusItem('TestFly CLI', 'Not Installed (Click to install)', 'error'));
-        }
-
-        // 2. Claude Code Registration
-        const claudeReg = isClaudeCodeRegistered();
-        if (claudeReg) {
-            items.push(new StatusItem('Claude Code', 'Registered (~/.claude/settings.json)', 'pass-filled'));
-        } else {
-            items.push(new StatusItem('Claude Code', 'Not Registered (Click Quick Actions)', 'warning'));
-        }
-
-        // 3. Workspace TestFly Config
-        let hasTestFlyConfig = false;
         const folders = vscode.workspace.workspaceFolders;
-        if (folders && folders.length > 0) {
-            for (const folder of folders) {
-                const ymlPath = path.join(folder.uri.fsPath, 'testfly.yml');
-                const yamlPath = path.join(folder.uri.fsPath, 'testfly.yaml');
-                if (fs.existsSync(ymlPath) || fs.existsSync(yamlPath)) {
-                    hasTestFlyConfig = true;
-                    break;
-                }
-            }
-        }
+        const root = folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
+        const diag = await Checker.getDiagnostics(root);
+        const registered = McpRegistrar.isRegisteredAnywhere();
 
-        if (hasTestFlyConfig) {
-            items.push(new StatusItem('testfly.yml', 'Active in Workspace', 'pass-filled'));
-        } else {
-            items.push(new StatusItem('testfly.yml', 'Not Found (Click Init Config)', 'info'));
-        }
-
-        return items;
+        return [
+            new StatusItem('JDK 21+', diag.javaInstalled ? (diag.javaVersion || 'Ready') : 'Missing', diag.javaInstalled ? 'pass-filled' : 'error'),
+            new StatusItem('Maven', diag.mavenInstalled ? 'Ready' : 'Not in PATH', diag.mavenInstalled ? 'pass-filled' : 'warning'),
+            new StatusItem('Node.js', diag.nodeInstalled ? (diag.nodeVersion || 'Ready') : 'Not in PATH', diag.nodeInstalled ? 'pass-filled' : 'info'),
+            new StatusItem('testfly.yml', diag.hasTestFlyYml ? 'Present (✓)' : 'Not Found', diag.hasTestFlyYml ? 'pass-filled' : 'info'),
+            new StatusItem('Action Cache', `${diag.actionCacheCount} goals`, 'zap'),
+            new StatusItem('Self-Healing Patches', `${diag.remediationPatchCount} patches`, diag.remediationPatchCount > 0 ? 'tools' : 'pass'),
+            new StatusItem('AI MCP Assistants', registered ? 'Configured (✓)' : 'Setup Needed', registered ? 'pass-filled' : 'warning')
+        ];
     }
 }
 
-export class ToolTreeItem extends vscode.TreeItem {
-    constructor(
-        public readonly label: string,
-        public readonly isCategory: boolean,
-        public readonly toolData?: ToolMetadata,
-        collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
-    ) {
-        super(label, collapsibleState);
-        if (isCategory) {
-            this.iconPath = new vscode.ThemeIcon('folder');
-        } else if (toolData) {
-            this.iconPath = new vscode.ThemeIcon('symbol-method');
-            this.description = `(${toolData.paramsCount} params)`;
-            this.tooltip = `${toolData.name}\n\n${toolData.description}`;
-            this.command = {
-                command: 'testfly-mcp.showToolDetails',
-                title: 'Show Tool Details',
-                arguments: [toolData]
-            };
-        }
-    }
-}
+export class ActionCacheTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+    private _onDidChangeTreeData = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-export class ToolsTreeProvider implements vscode.TreeDataProvider<ToolTreeItem> {
-    getTreeItem(element: ToolTreeItem): vscode.TreeItem {
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
         return element;
     }
 
-    getChildren(element?: ToolTreeItem): Thenable<ToolTreeItem[]> {
-        if (!element) {
-            // Root: Categories
-            const categories = Array.from(new Set(TOOLS_DATA.map(t => t.category)));
-            const categoryItems = categories.map(cat => {
-                const count = TOOLS_DATA.filter(t => t.category === cat).length;
-                return new ToolTreeItem(`${cat} (${count})`, true, undefined, vscode.TreeItemCollapsibleState.Collapsed);
-            });
-            return Promise.resolve(categoryItems);
-        } else if (element.isCategory) {
-            // Category children
-            const catName = element.label.split(' (')[0];
-            const tools = TOOLS_DATA.filter(t => t.category === catName);
-            const items = tools.map(t => new ToolTreeItem(t.name, false, t));
-            return Promise.resolve(items);
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) return Promise.resolve([]);
+        const root = folders[0].uri.fsPath;
+        const plans = ActionCacheService.readCache(root);
+        if (plans.length === 0) {
+            const item = new vscode.TreeItem('No cached goals (.testfly/action-cache.json)', vscode.TreeItemCollapsibleState.None);
+            item.iconPath = new vscode.ThemeIcon('info');
+            return Promise.resolve([item]);
         }
-        return Promise.resolve([]);
+        return Promise.resolve(plans.map(p => {
+            const item = new vscode.TreeItem(p.goal, vscode.TreeItemCollapsibleState.None);
+            item.description = `${p.steps ? p.steps.length : 0} steps`;
+            item.iconPath = new vscode.ThemeIcon('zap');
+            item.tooltip = `Goal: ${p.goal}\nCompiled: ${new Date(p.createdAt).toLocaleString()}`;
+            item.command = {
+                command: 'testfly.openActionCache',
+                title: 'Open Action Cache'
+            };
+            return item;
+        }));
+    }
+}
+
+export class RemediationTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+    private _onDidChangeTreeData = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) return Promise.resolve([]);
+        const root = folders[0].uri.fsPath;
+        const patches = RemediationService.listPatches(root);
+        if (patches.length === 0) {
+            const item = new vscode.TreeItem('No pending patches (target/remediations)', vscode.TreeItemCollapsibleState.None);
+            item.iconPath = new vscode.ThemeIcon('check');
+            return Promise.resolve([item]);
+        }
+        return Promise.resolve(patches.map(p => {
+            const item = new vscode.TreeItem(p.fileName, vscode.TreeItemCollapsibleState.None);
+            item.description = p.targetClass ? `Target: ${p.targetClass}` : undefined;
+            item.iconPath = new vscode.ThemeIcon('tools');
+            item.tooltip = `Self-Healing Patch: ${p.fileName}\nClick to review and apply.`;
+            item.command = {
+                command: 'testfly.openPatchReviewer',
+                title: 'Open Patch Reviewer'
+            };
+            return item;
+        }));
     }
 }

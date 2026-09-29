@@ -6,7 +6,7 @@ import { DEFAULT_TESTFLY_YML } from './constants';
 export async function initTestFlyConfig(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
-        vscode.window.showErrorMessage('TestFly MCP: No workspace folder is open.');
+        vscode.window.showErrorMessage('TestFly: No workspace folder is open.');
         return;
     }
 
@@ -28,8 +28,8 @@ export async function initTestFlyConfig(): Promise<void> {
         fs.writeFileSync(configPath, DEFAULT_TESTFLY_YML, 'utf8');
         const doc = await vscode.workspace.openTextDocument(configPath);
         await vscode.window.showTextDocument(doc);
-        vscode.window.showInformationMessage('TestFly MCP: testfly.yml created successfully.');
+        vscode.window.showInformationMessage('TestFly: testfly.yml created successfully with modern Java 21 & AI configurations.');
     } catch (err: any) {
-        vscode.window.showErrorMessage(`TestFly MCP: Failed to create testfly.yml: ${err.message}`);
+        vscode.window.showErrorMessage(`TestFly: Failed to create testfly.yml: ${err.message}`);
     }
 }

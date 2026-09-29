@@ -1,40 +1,41 @@
 {
-  "name": "testfly-mcp",
-  "displayName": "TestFly MCP — AI Browser Automation & Codegen",
-  "description": "MCP server for TestFly and Selenium WebDriver automation. Lets GitHub Copilot, Claude, and AI assistants control a real browser — 88 tools for navigation, interaction, assertions, and framework-native test codegen.",
-  "version": "1.0.0",
+  "name": "testfly-vscode",
+  "displayName": "TestFly — AI Test Automation Studio",
+  "description": "Zero-boilerplate Java test automation studio for TestFly. Works seamlessly with Playwright MCP for live browser driving, provides 1-click MCP setup for Cursor/Claude/Copilot, and manages Action Cache & AI Self-Healing patches.",
+  "version": "1.1.0",
   "publisher": "testfly",
   "icon": "icon.png",
   "engines": {
-    "vscode": "^1.99.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "AI",
     "Testing",
-    "Other"
+    "Programming Languages"
   ],
   "keywords": [
     "testfly",
     "mcp",
     "selenium",
+    "playwright",
     "browser automation",
     "testing",
     "copilot",
     "claude",
-    "webdriver",
+    "cursor",
+    "java",
     "testng",
-    "junit5",
-    "cucumber"
+    "junit5"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hakanngul/testfly-mcp"
+    "url": "https://github.com/hakanngul/testfly"
   },
-  "homepage": "https://github.com/hakanngul/testfly-mcp",
+  "homepage": "https://hakanngul.github.io/testfly",
   "bugs": {
-    "url": "https://github.com/hakanngul/testfly-mcp/issues"
+    "url": "https://github.com/hakanngul/testfly/issues"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -43,14 +44,14 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "testfly-mcp-view",
-          "title": "TestFly MCP",
+          "id": "testfly-studio-view",
+          "title": "TestFly Studio",
           "icon": "resources/testfly.svg"
         }
       ]
     },
     "views": {
-      "testfly-mcp-view": [
+      "testfly-studio-view": [
         {
           "id": "testfly.quickActions",
           "name": "Quick Actions",
@@ -62,87 +63,82 @@
           "type": "tree"
         },
         {
-          "id": "testfly.tools",
-          "name": "Available MCP Tools (88)",
+          "id": "testfly.actionCache",
+          "name": "Action Cache (.testfly/action-cache.json)",
+          "type": "tree"
+        },
+        {
+          "id": "testfly.remediations",
+          "name": "AI Self-Healing Patches (target/remediations)",
           "type": "tree"
         }
       ]
     },
-    "mcpServers": {
-      "testfly": {
-        "label": "TestFly MCP",
-        "type": "stdio",
-        "command": "testfly-mcp"
-      }
-    },
-    "configuration": {
-      "title": "TestFly MCP",
-      "properties": {
-        "testflyMcp.registerProjectMcpJson": {
-          "type": "boolean",
-          "default": false,
-          "description": "Also write a project-level .mcp.json into every open workspace folder, registering the TestFly MCP server for Claude Code. Off by default: the global ~/.claude/settings.json registration already covers every project, and this drops an untracked file into each workspace."
-        }
-      }
-    },
     "commands": [
       {
-        "command": "testfly-mcp.menu",
-        "title": "TestFly MCP: Open Actions Menu"
+        "command": "testfly.menu",
+        "title": "TestFly: Open Actions Menu"
       },
       {
-        "command": "testfly-mcp.launchStudio",
-        "title": "TestFly MCP: Start TestFly Recorder (Playwright-Style)",
-        "icon": "$(record)"
+        "command": "testfly.multiMcpSetup",
+        "title": "TestFly: 1-Click Multi-Assistant MCP Setup (Cursor, Claude, Copilot)",
+        "icon": "$(hubot)"
       },
       {
-        "command": "testfly-mcp.initProject",
-        "title": "TestFly MCP: Scaffold New Project (testfly init)",
-        "icon": "$(file-code)"
+        "command": "testfly.openActionCache",
+        "title": "TestFly: Open Action Cache Explorer",
+        "icon": "$(zap)"
       },
       {
-        "command": "testfly-mcp.shardTests",
-        "title": "TestFly MCP: Run CI Test Sharder (testfly shard)",
-        "icon": "$(split-horizontal)"
+        "command": "testfly.openPatchReviewer",
+        "title": "TestFly: Open AI Self-Healing Patch Reviewer",
+        "icon": "$(tools)"
       },
       {
-        "command": "testfly-mcp.checkStatus",
-        "title": "TestFly MCP: Check Installation & Diagnostics",
-        "icon": "$(pulse)"
-      },
-      {
-        "command": "testfly-mcp.initConfig",
-        "title": "TestFly MCP: Initialize testfly.yml Config",
+        "command": "testfly.openVisualConfig",
+        "title": "TestFly: Open Visual testfly.yml Editor",
         "icon": "$(gear)"
       },
       {
-        "command": "testfly-mcp.install",
-        "title": "TestFly MCP: Install Server"
+        "command": "testfly.initProject",
+        "title": "TestFly: Scaffold Java 21 Project",
+        "icon": "$(file-code)"
       },
       {
-        "command": "testfly-mcp.upgrade",
-        "title": "TestFly MCP: Upgrade to Latest"
+        "command": "testfly.shardTests",
+        "title": "TestFly: Run CI Test Sharder",
+        "icon": "$(split-horizontal)"
       },
       {
-        "command": "testfly-mcp.refreshStatus",
-        "title": "TestFly MCP: Refresh Status",
+        "command": "testfly.checkStatus",
+        "title": "TestFly: Check Environment Diagnostics",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "testfly.initConfig",
+        "title": "TestFly: Initialize testfly.yml Config",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "testfly.refreshStatus",
+        "title": "TestFly: Refresh Status",
         "icon": "$(refresh)"
       },
       {
-        "command": "testfly-mcp.openDocs",
-        "title": "TestFly MCP: Open Documentation",
+        "command": "testfly.openDocs",
+        "title": "TestFly: Open Documentation",
         "icon": "$(book)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "testfly-mcp.refreshStatus",
-          "when": "view == testfly.status",
+          "command": "testfly.refreshStatus",
+          "when": "view == testfly.status || view == testfly.actionCache || view == testfly.remediations",
           "group": "navigation"
         },
         {
-          "command": "testfly-mcp.launchStudio",
+          "command": "testfly.multiMcpSetup",
           "when": "view == testfly.quickActions",
           "group": "navigation"
         }
@@ -156,7 +152,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.99.0",
+    "@types/vscode": "^1.90.0",
     "typescript": "^5.4.0"
   }
 }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isInstalled } from './checker';
+import { Checker } from './checker';
 
 export class TestFlyStatusBar {
     private statusBarItem: vscode.StatusBarItem;
@@ -9,21 +9,22 @@ export class TestFlyStatusBar {
             vscode.StatusBarAlignment.Right,
             100
         );
-        this.statusBarItem.command = 'testfly-mcp.menu';
+        this.statusBarItem.command = 'testfly.menu';
     }
 
     public async update(): Promise<void> {
-        const ready = await isInstalled();
-        if (ready) {
-            this.statusBarItem.text = '$(radio-tower) TestFly MCP';
-            this.statusBarItem.tooltip = 'TestFly MCP is active. Click for options.';
+        const folders = vscode.workspace.workspaceFolders;
+        const root = folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
+        const diag = await Checker.getDiagnostics(root);
+
+        if (diag.hasTestFlyYml) {
+            this.statusBarItem.text = '$(zap) TestFly Studio';
+            this.statusBarItem.tooltip = `TestFly Active (${diag.actionCacheCount} cached goals, ${diag.remediationPatchCount} patches)`;
             this.statusBarItem.backgroundColor = undefined;
         } else {
-            this.statusBarItem.text = '$(warning) TestFly MCP';
-            this.statusBarItem.tooltip = 'TestFly MCP requires setup. Click to install.';
-            this.statusBarItem.backgroundColor = new vscode.ThemeColor(
-                'statusBarItem.warningBackground'
-            );
+            this.statusBarItem.text = '$(radio-tower) TestFly Studio';
+            this.statusBarItem.tooltip = 'Click to configure TestFly or setup AI MCP assistants.';
+            this.statusBarItem.backgroundColor = undefined;
         }
         this.statusBarItem.show();
     }

@@ -24,7 +24,7 @@ object MCPRegistrar {
         return content.contains("name=\"$SERVER_NAME\"") || content.contains("name='$SERVER_NAME'")
     }
 
-    fun register(command: String): Boolean {
+    fun register(command: String = "npx", args: String = "-y @testfly/mcp"): Boolean {
         return try {
             val file = mcpConfigFile() ?: return false
             val doc = loadOrCreate(file)
@@ -46,7 +46,7 @@ object MCPRegistrar {
             val entry = doc.createElement("McpServerStdioCommand")
             entry.setAttribute("name", SERVER_NAME)
             entry.setAttribute("command", command)
-            entry.setAttribute("args", "")
+            entry.setAttribute("args", args)
             entry.setAttribute("enabled", "true")
             commands.appendChild(entry)
 

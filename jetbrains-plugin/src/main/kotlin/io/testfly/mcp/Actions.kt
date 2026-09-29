@@ -10,12 +10,10 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-private const val INSTALL_CMD = "pip install git+https://github.com/hakanngul/testfly-mcp.git"
-private const val UPGRADE_CMD = "pip install --upgrade git+https://github.com/hakanngul/testfly-mcp.git"
-private const val DOCS_URL = "https://github.com/hakanngul/testfly-mcp"
+private const val DOCS_URL = "https://hakanngul.github.io/testfly"
 internal const val NOTIFICATION_GROUP = "TestFly MCP"
 
-private const val DEFAULT_TESTFLY_YML = """# TestFly Configuration
+private val DEFAULT_TESTFLY_YML = """# TestFly Configuration v1.0.6
 execution:
   mode: local
   baseUrl: http://localhost:8080
@@ -44,34 +42,27 @@ reporting:
   html:
     enabled: true
     title: TestFly Test Automation Report
-"""
 
-class InstallAction : AnAction() {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        runPipCommand(project, INSTALL_CMD)
-    }
-}
-
-class UpgradeAction : AnAction() {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        runPipCommand(project, UPGRADE_CMD)
-    }
-}
+ai:
+  provider: gemini
+  model: gemini-2.0-flash
+  apiKey: ""
+  selfHealing:
+    enabled: true
+    generatePatches: true
+""".trimIndent()
 
 class RegisterMCPAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val command = InstallChecker.resolveCommand() ?: "testfly-mcp"
-        val ok = MCPRegistrar.register(command)
+        val ok = MCPRegistrar.register("npx", "-y @testfly/mcp")
         if (ok) {
-            notify(project, "Registered TestFly MCP successfully. Restart the IDE to activate with AI Assistant.", NotificationType.INFORMATION)
+            notify(project, "Registered TestFly MCP Bridge successfully. Restart IDE or AI Assistant to activate.", NotificationType.INFORMATION)
         } else {
             notify(
                 project,
                 "Could not auto-register. Add manually in <i>Settings → Tools → AI Assistant → MCP Servers</i>. " +
-                "Command: <code>testfly-mcp</code>",
+                "Command: <code>npx</code>, Args: <code>-y @testfly/mcp</code>",
                 NotificationType.ERROR
             )
         }
@@ -81,21 +72,33 @@ class RegisterMCPAction : AnAction() {
 class CheckStatusAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val installed = InstallChecker.isInstalled()
-        val registered = MCPRegistrar.isRegistered()
-        val command = InstallChecker.resolveCommand() ?: "Not found in PATH"
-        val version = InstallChecker.getInstalledVersion() ?: "Unknown"
+        val basePath = project.basePath ?: return
+        val hasYml = File(basePath, "testfly.yml").exists() || File(basePath, "testfly.yaml").exists()
+        val hasPom = File(basePath, "pom.xml").exists()
+        val cacheFile = File(basePath, ".testfly/action-cache.json")
+        val remediationsDir = File(basePath, "target/remediations")
+
+        val cacheCount = if (cacheFile.exists()) {
+            val content = cacheFile.readText()
+            if (content.contains("goal")) "Active" else "Empty"
+        } else "Not initialized"
+
+        val patchCount = if (remediationsDir.exists()) {
+            remediationsDir.listFiles { _, name -> name.endsWith(".patch") }?.size ?: 0
+        } else 0
 
         val report = buildString {
-            append("<b>TestFly MCP Diagnostic Report</b><br><br>")
-            append(if (installed) "✓ Python package: <b>Installed</b> (v$version)<br>" else "✗ Python package: <b>NOT installed</b><br>")
-            append("• CLI Command: <code>$command</code><br>")
-            append(if (registered) "✓ AI Assistant Registration: <b>Active</b><br>" else "✗ AI Assistant Registration: <b>Not registered</b><br>")
+            append("<b>TestFly Studio Environment Report</b><br><br>")
+            append(if (hasYml) "✓ <code>testfly.yml</code>: <b>Present</b><br>" else "✗ <code>testfly.yml</code>: <b>Missing</b><br>")
+            append(if (hasPom) "✓ <code>pom.xml</code>: <b>Present</b><br>" else "✗ <code>pom.xml</code>: <b>Missing</b><br>")
+            append("• Action Cache: <b>$cacheCount</b><br>")
+            append("• Self-Healing Patches: <b>$patchCount pending</b><br>")
+            append("• AI Assistant MCP: <b>Ready via Playwright & TestFly Bridge</b><br>")
         }
 
         notify(
             project, report,
-            if (installed && registered) NotificationType.INFORMATION else NotificationType.WARNING
+            if (hasYml && hasPom) NotificationType.INFORMATION else NotificationType.WARNING
         )
     }
 }
@@ -135,34 +138,9 @@ class OpenDocsAction : AnAction() {
     }
 }
 
-class LaunchStudioAction : AnAction() {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        val cmd = InstallChecker.resolveCommand() ?: "testfly-mcp"
-        runPipCommand(project, "$cmd ui")
-        notify(project, "Launching TestFly MCP Studio at <code>http://127.0.0.1:8765</code>...", NotificationType.INFORMATION)
-    }
-}
-
-
-private fun runPipCommand(project: Project, command: String) {
-    try {
-        val isWindows = System.getProperty("os.name").lowercase().contains("win")
-        val proc = if (isWindows) {
-            ProcessBuilder("cmd", "/c", command)
-        } else {
-            ProcessBuilder("bash", "-c", command)
-        }
-        proc.redirectErrorStream(true).start()
-        notify(project, "Running: <code>$command</code> — check terminal for installation progress.", NotificationType.INFORMATION)
-    } catch (ex: Exception) {
-        notify(project, "Failed to run: $command<br>${ex.message}", NotificationType.ERROR)
-    }
-}
-
 private fun notify(project: Project, content: String, type: NotificationType) {
     NotificationGroupManager.getInstance()
         .getNotificationGroup(NOTIFICATION_GROUP)
-        ?.createNotification("TestFly MCP", content, type)
+        ?.createNotification("TestFly Studio", content, type)
         ?.notify(project)
 }

@@ -1,0 +1,28 @@
+{
+  "name": "@testfly/mcp",
+  "version": "1.1.0",
+  "description": "Lightweight Model Context Protocol (MCP) bridge for TestFly Java test automation. Pairs with Playwright MCP for live browser control and provides TestFly Java codegen, action-cache management, and self-healing patch remediation.",
+  "bin": {
+    "testfly-mcp": "./bin/testfly-mcp.js",
+    "testfly-bridge": "./bin/testfly-mcp.js"
+  },
+  "keywords": [
+    "testfly",
+    "mcp",
+    "playwright",
+    "selenium",
+    "java",
+    "testng",
+    "junit5",
+    "model-context-protocol"
+  ],
+  "author": "Hakan Gül <hakanngul@icloud.com>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hakanngul/testfly"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
