@@ -232,7 +232,9 @@ ${steps}
   if (name === 'init_testfly_project') {
     const dir = args.directory || path.join(root, 'testfly-suite');
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'testfly.yml'), `# TestFly Configuration v1.0.6
+    fs.mkdirSync(path.join(dir, 'src', 'test', 'java', 'com', 'example', 'tests'), { recursive: true });
+
+    fs.writeFileSync(path.join(dir, 'testfly.yml'), `# TestFly Configuration
 execution:
   mode: local
   baseUrl: https://example.com
@@ -257,10 +259,92 @@ reporting:
     enabled: true
     title: TestFly Test Automation Report
 `, 'utf8');
+
+    fs.writeFileSync(path.join(dir, 'pom.xml'), `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>testfly-suite</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <testfly.version>1.0.7</testfly.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.hakanngul</groupId>
+            <artifactId>testfly</artifactId>
+            <version>\${testfly.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+`, 'utf8');
+
+    fs.writeFileSync(path.join(dir, 'src', 'test', 'java', 'com', 'example', 'tests', 'SampleWebTest.java'), `package com.example.tests;
+
+import io.testfly.test.BaseTest;
+import org.testng.annotations.Test;
+
+public class SampleWebTest extends BaseTest {
+
+    @Test
+    public void testExampleDotCom() {
+        open("/");
+        assertThatPage().hasTitle("Example Domain");
+    }
+}
+`, 'utf8');
+
     return { content: [{ type: 'text', text: `Scaffolded TestFly project at ${dir}` }] };
   }
 
   throw new Error(`Unknown tool: ${name}`);
+}
+
+// CLI argument handling
+const cliArgs = process.argv.slice(2);
+if (cliArgs.length > 0) {
+  const command = cliArgs[0];
+  if (command === 'init') {
+    const targetDir = cliArgs[1] || 'testfly-suite';
+    const targetPath = path.resolve(process.cwd(), targetDir);
+    const result = handleToolCall('init_testfly_project', { directory: targetPath });
+    console.log(`✈️  ${result.content[0].text}`);
+    console.log(`Next steps:\n  cd ${targetDir}\n  mvn test`);
+    process.exit(0);
+  }
+  if (command === '--version' || command === '-v') {
+    console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
+    process.exit(0);
+  }
+  if (command === '--help' || command === '-h') {
+    console.log(`Usage:
+  npx @testfly/mcp init [directory]   Scaffold a ready-to-run TestFly Java 21 test suite
+  npx @testfly/mcp                    Start stdio JSON-RPC MCP server for Cursor / Claude`);
+    process.exit(0);
+  }
 }
 
 // JSON-RPC stdio loop
