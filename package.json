@@ -6,6 +6,10 @@
     "testfly-mcp": "./bin/testfly-mcp.js",
     "testfly-bridge": "./bin/testfly-mcp.js"
   },
+  "files": [
+    "bin/",
+    "templates/"
+  ],
   "keywords": [
     "testfly",
     "mcp",
@@ -24,5 +28,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

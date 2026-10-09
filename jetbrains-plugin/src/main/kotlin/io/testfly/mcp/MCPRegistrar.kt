@@ -12,7 +12,6 @@ import javax.xml.transform.stream.StreamResult
 
 private const val COMPONENT_NAME = "McpApplicationServerCommands"
 private const val SERVER_NAME = "testfly"
-private const val LEGACY_SERVER_NAME = "seleniumboot"
 private const val MCP_FILE = "llm.mcpServers.xml"
 
 object MCPRegistrar {
@@ -24,7 +23,7 @@ object MCPRegistrar {
         return content.contains("name=\"$SERVER_NAME\"") || content.contains("name='$SERVER_NAME'")
     }
 
-    fun register(command: String = "npx", args: String = "-y @testfly/mcp"): Boolean {
+    fun register(command: String, args: String): Boolean {
         return try {
             val file = mcpConfigFile() ?: return false
             val doc = loadOrCreate(file)
@@ -33,12 +32,12 @@ object MCPRegistrar {
             val component = findOrCreateComponent(doc, root)
             val commands = findOrCreateElement(doc, component, "commands")
 
-            // Remove existing entry with testfly or legacy seleniumboot name to avoid duplicates
+            // Replace only our own entry; never remove another server.
             val existing = commands.getElementsByTagName("*")
             for (i in existing.length - 1 downTo 0) {
                 val node = existing.item(i) as? Element ?: continue
                 val name = node.getAttribute("name")
-                if (name == SERVER_NAME || name == LEGACY_SERVER_NAME) {
+                if (name == SERVER_NAME) {
                     commands.removeChild(node)
                 }
             }
@@ -64,11 +63,9 @@ object MCPRegistrar {
 
     private fun loadOrCreate(file: File): Document {
         if (file.exists()) {
-            return try {
-                DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
-            } catch (_: Exception) {
-                newDocument()
-            }
+            val factory = DocumentBuilderFactory.newInstance()
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            return factory.newDocumentBuilder().parse(file)
         }
         return newDocument()
     }
@@ -106,6 +103,14 @@ object MCPRegistrar {
         val transformer = TransformerFactory.newInstance().newTransformer()
         transformer.setOutputProperty(OutputKeys.INDENT, "yes")
         transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2")
-        transformer.transform(DOMSource(doc), StreamResult(file))
+        val temporary = File.createTempFile("testfly-mcp-", ".xml", file.parentFile)
+        try {
+            transformer.transform(DOMSource(doc), StreamResult(temporary))
+            java.nio.file.Files.move(temporary.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temporary.delete()
+        }
     }
 }
