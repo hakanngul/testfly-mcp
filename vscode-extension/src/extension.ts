@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DOCS_URL, DEFAULT_POM_XML, DEFAULT_TESTFLY_YML, DEFAULT_SMOKE_TEST } from './constants';
 import { Checker } from './checker';
-import { McpRegistrar } from './registrar';
+import { McpRegistrar, McpTarget } from './registrar';
 import { initTestFlyConfig } from './configGenerator';
 import { TestFlyStatusBar } from './statusBar';
 import {
@@ -15,6 +15,8 @@ import {
 import { ActionCacheWebview } from './actionCacheWebview';
 import { PatchReviewerWebview } from './patchReviewerWebview';
 import { ConfigWebview } from './configWebview';
+import { decideReportActions, discoverReports } from './reportService';
+import { installBundledBridge } from './bridgeInstaller';
 
 export async function activate(context: vscode.ExtensionContext) {
     const statusBar = new TestFlyStatusBar();
@@ -46,29 +48,88 @@ export async function activate(context: vscode.ExtensionContext) {
         statusBar.update();
     };
 
-    // 2. Command: explicit workspace-only MCP setup
+    // Keep the sidebar and open panels in step with files the test run writes.
+    const watchRoot = getWorkspaceRoot();
+    if (watchRoot) {
+        let timer: NodeJS.Timeout | undefined;
+        const onDiskChange = () => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => { refreshAll(); PatchReviewerWebview.refresh(); }, 300);
+        };
+        for (const glob of ['target/remediations/*.patch', '.testfly/action-cache.json', 'testfly.{yml,yaml}', '.vscode/mcp.json', '.cursor/mcp.json']) {
+            const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchRoot, glob));
+            watcher.onDidCreate(onDiskChange);
+            watcher.onDidChange(onDiskChange);
+            watcher.onDidDelete(onDiskChange);
+            context.subscriptions.push(watcher);
+        }
+    }
+
+    // The bundled bridge lives in global storage so registered paths survive extension updates.
+    let bundledBridge: string | undefined;
+    try {
+        bundledBridge = installBundledBridge(context.extensionPath, context.globalStorageUri.fsPath);
+    } catch (error: any) {
+        console.error(`TestFly: could not install bundled MCP bridge: ${error.message}`);
+    }
+
+    // 2. Command: MCP setup for the current IDE (and optionally others)
     const runMultiMcpSetup = async () => {
         const root = getWorkspaceRoot();
-        if (!root) {
-            vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
-            return;
-        }
-        const selected = await vscode.window.showOpenDialog({
-            title: 'Select your local testfly-mcp.js bridge script',
-            canSelectFiles: true,
-            canSelectMany: false,
-            filters: { JavaScript: ['js'] }
-        });
-        if (!selected?.length) return;
-        const bridgeScript = selected[0].fsPath;
-        const confirm = await vscode.window.showWarningMessage(
-            `Add TestFly (${bridgeScript}) and Playwright MCP to ${path.join(root, '.cursor', 'mcp.json')} and ${path.join(root, '.vscode', 'mcp.json')}? Existing server entries will be retained.`,
-            { modal: true }, 'Configure workspace'
+        const host = McpRegistrar.hostTarget(vscode.env.appName);
+
+        let bridgeScript = bundledBridge;
+        const source = await vscode.window.showQuickPick(
+            [
+                ...(bundledBridge ? [{ label: '$(package) Bundled TestFly bridge', description: 'Recommended', detail: bundledBridge, id: 'bundled' }] : []),
+                { label: '$(folder-opened) Browse for testfly-mcp.js…', description: 'Use a local checkout instead', id: 'browse' }
+            ],
+            { title: 'TestFly MCP: Which bridge should the AI assistant start?' }
         );
-        if (confirm !== 'Configure workspace') return;
+        if (!source) return;
+        if (source.id === 'browse') {
+            const selected = await vscode.window.showOpenDialog({
+                title: 'Select your local testfly-mcp.js bridge script',
+                canSelectFiles: true,
+                canSelectMany: false,
+                filters: { JavaScript: ['js'] }
+            });
+            if (!selected?.length) return;
+            bridgeScript = selected[0].fsPath;
+        }
+        if (!bridgeScript) return;
+
+        const targets: McpTarget[] = ['antigravity', 'vscode', 'cursor'];
+        const picks = await vscode.window.showQuickPick(
+            targets.map(t => {
+                const info = McpRegistrar.targetInfo(t, root);
+                const unavailable = !info.global && !root;
+                return {
+                    label: info.label + (t === host ? ' (this IDE)' : ''),
+                    description: unavailable ? 'Open a workspace folder first' : (info.global ? 'user settings' : 'workspace'),
+                    detail: info.file,
+                    picked: t === host && !unavailable,
+                    target: t,
+                    unavailable
+                };
+            }),
+            { title: 'TestFly MCP: Register in which assistants?', canPickMany: true }
+        );
+        const chosen = (picks || []).filter(p => !p.unavailable);
+        if (chosen.length === 0) return;
+
+        const files = chosen.map(p => `• ${p.detail}`).join('\n');
+        const confirm = await vscode.window.showWarningMessage(
+            `Add the "testfly" and "playwright" MCP servers to:\n${files}\n\nOther server entries are kept.`,
+            { modal: true }, 'Configure'
+        );
+        if (confirm !== 'Configure') return;
         try {
-            const report = McpRegistrar.registerWorkspace(root, bridgeScript);
-            vscode.window.showInformationMessage(`TestFly MCP: Cursor ${report.cursorProject ? 'configured' : 'not configured'}, VS Code ${report.vscodeNative ? 'configured' : 'not configured'}.`);
+            McpRegistrar.register(chosen.map(p => p.target), bridgeScript, root);
+            const reload = chosen.some(p => p.target === 'antigravity')
+                ? ' Reload MCP servers in Antigravity (Agent panel → MCP Servers → Refresh) to pick them up.'
+                : '';
+            vscode.window.showInformationMessage(`TestFly MCP configured for ${chosen.map(p => McpRegistrar.targetInfo(p.target).label).join(', ')}.${reload}`);
             refreshAll();
         } catch (error: any) {
             vscode.window.showErrorMessage(`TestFly MCP setup stopped: ${error.message}`);
@@ -92,7 +153,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
             return;
         }
-        PatchReviewerWebview.show(context, root);
+        PatchReviewerWebview.show(context, root, refreshAll);
     };
 
     // 5. Command: Open Visual testfly.yml Editor
@@ -102,7 +163,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
             return;
         }
-        ConfigWebview.show(context, root);
+        ConfigWebview.show(context, root, refreshAll);
     };
 
     // 6. Command: Scaffold Java 21 Project
@@ -226,8 +287,8 @@ export async function activate(context: vscode.ExtensionContext) {
     const showMenu = async () => {
         const items: vscode.QuickPickItem[] = [
             {
-                label: '$(hubot) Configure Workspace MCP',
-                description: 'Select local TestFly bridge and configure Cursor/VS Code',
+                label: '$(hubot) Set Up MCP',
+                description: 'Register TestFly + Playwright MCP for Antigravity, VS Code, or Cursor',
                 detail: 'multiMcpSetup'
             },
             {

@@ -20,6 +20,14 @@ export interface CodegenOptions {
     baseUrl?: string;
 }
 
+// Constants of io.testfly.locator.Role.
+const ROLES = new Set(['BUTTON', 'LINK', 'CHECKBOX', 'RADIO', 'SWITCH', 'TEXTBOX', 'SEARCHBOX', 'COMBOBOX', 'OPTION', 'HEADING', 'IMG', 'LIST', 'LISTITEM', 'TABLE', 'ROW', 'CELL', 'COLUMNHEADER', 'NAVIGATION', 'BANNER', 'CONTENTINFO', 'MAIN', 'REGION', 'ARTICLE', 'DIALOG', 'ALERT', 'ALERTDIALOG', 'TAB', 'TABLIST', 'TABPANEL', 'MENU', 'MENUITEM', 'PROGRESSBAR', 'SPINBUTTON', 'SLIDER', 'PARAGRAPH', 'SEPARATOR']);
+
+/** Java string literal with backslashes, quotes and control characters escaped. */
+function javaString(value: unknown): string {
+    return JSON.stringify(String(value ?? '')).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
 export class CodegenService {
     /**
      * Generate TestFly Java code from recorded actions.
@@ -37,23 +45,23 @@ export class CodegenService {
     }
 
     private static generateLocatorExpression(action: RecordedAction): string {
-        if (action.role && action.roleName) {
-            return `getByRole(Role.${action.role.toUpperCase()}, new RoleOptions().setName("${action.roleName}"))`;
-        }
-        if (action.role) {
-            return `getByRole(Role.${action.role.toUpperCase()})`;
+        const role = action.role ? action.role.toUpperCase() : undefined;
+        if (role && ROLES.has(role)) {
+            return action.roleName
+                ? `getByRole(Role.${role}, ${javaString(action.roleName)})`
+                : `getByRole(Role.${role})`;
         }
         if (action.text) {
-            return `getByText("${action.text}")`;
+            return `getByText(${javaString(action.text)})`;
         }
         if (action.selector) {
             if (action.selector.startsWith('//') || action.selector.startsWith('(//')) {
-                return `find(By.xpath("${action.selector}"))`;
+                return `find(By.xpath(${javaString(action.selector)}))`;
             }
-            if (action.selector.startsWith('#')) {
-                return `find(By.id("${action.selector.slice(1)}"))`;
+            if (/^#[A-Za-z][\w-]*$/.test(action.selector)) {
+                return `find(By.id(${javaString(action.selector.slice(1))}))`;
             }
-            return `find(By.cssSelector("${action.selector}"))`;
+            return `find(By.cssSelector(${javaString(action.selector)}))`;
         }
         return `find(By.cssSelector("*"))`;
     }
@@ -61,23 +69,24 @@ export class CodegenService {
     private static generateStep(action: RecordedAction): string {
         switch (action.type) {
             case 'navigate':
-                return action.value ? `open("${action.value}");` : `open();`;
+                return action.value ? `open(${javaString(action.value)});` : `open();`;
             case 'click':
                 return `${this.generateLocatorExpression(action)}.click();`;
             case 'type':
-                return `${this.generateLocatorExpression(action)}.type("${action.value || ''}");`;
+                return `${this.generateLocatorExpression(action)}.type(${javaString(action.value)});`;
             case 'select':
-                return `${this.generateLocatorExpression(action)}.selectOption("${action.value || ''}");`;
+                // TestFly's Locator has no select API; use Selenium's Select on the resolved element.
+                return `new Select(${this.generateLocatorExpression(action)}.element()).selectByVisibleText(${javaString(action.value)});`;
             case 'assert_title':
-                return `assertThatPage().hasTitle("${action.expected || ''}");`;
+                return `assertThatPage().hasTitle(${javaString(action.expected)});`;
             case 'assert_url':
-                return `assertThatPage().hasUrl("${action.expected || ''}");`;
+                return `assertThatPage().hasUrl(${javaString(action.expected)});`;
             case 'assert_visible':
                 return `assertThat(${this.generateLocatorExpression(action)}).isVisible();`;
             case 'assert_text':
-                return `assertThat(${this.generateLocatorExpression(action)}).hasText("${action.expected || ''}");`;
+                return `assertThat(${this.generateLocatorExpression(action)}).hasText(${javaString(action.expected)});`;
             default:
-                return `// Unsupported action: ${JSON.stringify(action)}`;
+                return `// Unsupported action: ${JSON.stringify(action).replace(/[\r\n]/g, ' ')}`;
         }
     }
 
@@ -86,9 +95,9 @@ export class CodegenService {
         return `package ${options.packageName};
 
 import io.testfly.locator.Role;
-import io.testfly.locator.RoleOptions;
 import io.testfly.test.BaseTest;
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.ui.Select;
 import org.testng.annotations.Test;
 
 /**
@@ -110,10 +119,10 @@ ${steps}
 
 import io.testfly.junit5.BaseJUnit5Test;
 import io.testfly.locator.Role;
-import io.testfly.locator.RoleOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.ui.Select;
 
 /**
  * Auto-generated by TestFly Studio.
@@ -140,9 +149,9 @@ package ${options.packageName};
 
 import io.testfly.locator.Locator;
 import io.testfly.locator.Role;
-import io.testfly.locator.RoleOptions;
 import io.testfly.test.BasePage;
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.ui.Select;
 
 public class ${pageName} extends BasePage {
 

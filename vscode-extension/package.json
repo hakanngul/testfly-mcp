@@ -81,7 +81,7 @@
       },
       {
         "command": "testfly.multiMcpSetup",
-        "title": "TestFly: Configure Workspace MCP (Cursor & VS Code)",
+        "title": "TestFly: Set Up MCP (Antigravity / VS Code / Cursor)",
         "icon": "$(hubot)"
       },
       {

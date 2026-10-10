@@ -35,3 +35,36 @@ test('workspace registration preserves existing settings and refuses malformed J
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+test('Antigravity registration writes the user-level file and status detects stale bridges',
+  { skip: Number(process.versions.node.split('.')[0]) < 22 }, () => {
+    const { McpRegistrar } = require('../vscode-extension/src/registrar.ts');
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'testfly-mcp-home-'));
+    try {
+      const file = McpRegistrar.antigravityConfigPath(home);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ mcpServers: { other: { serverUrl: 'https://x.test' } } }));
+      assert.equal(McpRegistrar.status('antigravity', undefined, home).registered, false);
+
+      const bridge = path.join(home, 'bridge', 'bin', 'testfly-mcp.js');
+      fs.mkdirSync(path.dirname(bridge), { recursive: true });
+      fs.writeFileSync(bridge, '');
+      McpRegistrar.register(['antigravity'], bridge, undefined, home);
+
+      const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+      assert.equal(config.mcpServers.other.serverUrl, 'https://x.test');
+      assert.deepEqual(config.mcpServers.testfly, { command: 'node', args: [bridge] });
+      assert.equal(config.mcpServers.testfly.type, undefined);
+      assert.equal(McpRegistrar.status('antigravity', undefined, home).bridgeExists, true);
+
+      fs.rmSync(bridge);
+      const stale = McpRegistrar.status('antigravity', undefined, home);
+      assert.equal(stale.registered, true);
+      assert.equal(stale.bridgeExists, false);
+
+      assert.equal(McpRegistrar.hostTarget('Antigravity IDE'), 'antigravity');
+      assert.equal(McpRegistrar.hostTarget('Visual Studio Code'), 'vscode');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });

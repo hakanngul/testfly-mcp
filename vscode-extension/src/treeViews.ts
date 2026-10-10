@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Checker } from './checker';
 import { ActionCacheService, ActionPlanModel } from './actionCacheService';
 import { RemediationService, RemediationPatch } from './remediationService';
-import { McpRegistrar } from './registrar';
+import { McpRegistrar, McpTargetStatus } from './registrar';
 
 export class QuickActionItem extends vscode.TreeItem {
     constructor(
@@ -29,10 +29,10 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
     getChildren(): Thenable<QuickActionItem[]> {
         return Promise.resolve([
             new QuickActionItem(
-                '⚡ Configure Workspace MCP',
+                '⚡ Set Up MCP (Antigravity / VS Code / Cursor)',
                 'testfly.multiMcpSetup',
                 'hubot',
-                'Configure Playwright MCP and TestFly Bridge across all AI assistants'
+                'Register the TestFly bridge and Playwright MCP for your AI assistant'
             ),
             new QuickActionItem(
                 '🎯 Open Action Cache Explorer',
@@ -57,6 +57,12 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
                 'testfly.initProject',
                 'file-code',
                 'Generate modern pom.xml, testfly.yml, and smoke test'
+            ),
+            new QuickActionItem(
+                '📄 Initialize testfly.yml Config',
+                'testfly.initConfig',
+                'new-file',
+                'Create a starter testfly.yml in the workspace root'
             ),
             new QuickActionItem(
                 '📊 Run CI Test Sharder',
@@ -116,7 +122,7 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
         const folders = vscode.workspace.workspaceFolders;
         const root = folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
         const diag = await Checker.getDiagnostics(root);
-        const registered = McpRegistrar.isRegisteredWorkspace(root);
+        const mcp = McpRegistrar.status(McpRegistrar.hostTarget(vscode.env.appName), root);
 
         return [
             new StatusItem('JDK 21+', diag.javaInstalled ? (diag.javaVersion || 'Ready') : 'Missing', diag.javaInstalled ? 'pass-filled' : 'error'),
@@ -125,8 +131,22 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
             new StatusItem('testfly.yml', diag.hasTestFlyYml ? 'Present (✓)' : 'Not Found', diag.hasTestFlyYml ? 'pass-filled' : 'info'),
             new StatusItem('Action Cache', `${diag.actionCacheCount} goals`, 'zap'),
             new StatusItem('Self-Healing Patches', `${diag.remediationPatchCount} patches`, diag.remediationPatchCount > 0 ? 'tools' : 'pass'),
-            new StatusItem('VS Code MCP', registered ? 'Configured (✓)' : 'Setup Needed', registered ? 'pass-filled' : 'warning')
+            this.mcpItem(mcp)
         ];
+    }
+
+    private mcpItem(mcp: McpTargetStatus): StatusItem {
+        const label = `${mcp.label} MCP`;
+        if (mcp.registered && mcp.bridgeExists) {
+            return new StatusItem(label, 'Configured (✓)', 'pass-filled', `TestFly bridge: ${mcp.bridgePath}\nConfig: ${mcp.file}`);
+        }
+        const description = mcp.registered ? 'Bridge missing — click to repair' : 'Setup Needed — click to set up';
+        const tooltip = mcp.registered
+            ? `${mcp.file} points to ${mcp.bridgePath ?? 'an unknown script'}, which no longer exists.`
+            : `TestFly is not registered in ${mcp.file}. Click to set it up.`;
+        const item = new StatusItem(label, description, 'warning', tooltip);
+        item.command = { command: 'testfly.multiMcpSetup', title: 'Set Up MCP' };
+        return item;
     }
 }
 
