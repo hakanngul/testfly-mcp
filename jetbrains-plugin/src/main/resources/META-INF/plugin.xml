@@ -14,7 +14,7 @@
             <li>Self-Healing Git diff (.patch) remediation management</li>
             <li>No ChromeDriver or Python setup required</li>
         </ul>
-        <p><a href="https://hakanngul.github.io/testfly">TestFly Documentation</a></p>
+        <p><a href="https://testfly.dev">TestFly Documentation</a></p>
     ]]></description>
 
     <change-notes><![CDATA[

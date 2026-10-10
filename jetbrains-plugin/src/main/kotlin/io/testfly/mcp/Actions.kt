@@ -11,7 +11,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 import javax.swing.JFileChooser
 
-private const val DOCS_URL = "https://hakanngul.github.io/testfly"
+private const val DOCS_URL = "https://testfly.dev"
 internal const val NOTIFICATION_GROUP = "TestFly MCP"
 
 class RegisterMCPAction : AnAction() {
