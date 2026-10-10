@@ -5,6 +5,11 @@ execution:
   parallel: none
   threadCount: 1
 
+api:
+  baseUrl: https://fakeapi.net    # Default base URL for the API client
+  timeoutSeconds: 30              # API request timeout in seconds
+  logBody: false                  # Omits response bodies from step logs
+
 browser:
   name: chrome
   headless: false
