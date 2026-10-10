@@ -179,7 +179,8 @@ export class ActionCacheTreeProvider implements vscode.TreeDataProvider<vscode.T
             item.tooltip = `Goal: ${p.goal}\nCompiled: ${new Date(p.createdAt).toLocaleString()}`;
             item.command = {
                 command: 'testfly.openActionCache',
-                title: 'Open Action Cache'
+                title: 'Open Action Cache',
+                arguments: [p.key]
             };
             return item;
         }));

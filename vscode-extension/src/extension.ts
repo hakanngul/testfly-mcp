@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
         let timer: NodeJS.Timeout | undefined;
         const onDiskChange = () => {
             if (timer) clearTimeout(timer);
-            timer = setTimeout(() => { refreshAll(); PatchReviewerWebview.refresh(); }, 300);
+            timer = setTimeout(() => { refreshAll(); PatchReviewerWebview.refresh(); ActionCacheWebview.refresh(); }, 300);
         };
         for (const glob of ['target/remediations/*.patch', '.testfly/action-cache.json', 'testfly.{yml,yaml}', '.vscode/mcp.json', '.cursor/mcp.json']) {
             const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchRoot, glob));
@@ -137,13 +137,13 @@ export async function activate(context: vscode.ExtensionContext) {
     };
 
     // 3. Command: Open Action Cache Explorer
-    const runOpenActionCache = () => {
+    const runOpenActionCache = (focusKey?: unknown) => {
         const root = getWorkspaceRoot();
         if (!root) {
             vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
             return;
         }
-        ActionCacheWebview.show(context, root);
+        ActionCacheWebview.show(context, root, typeof focusKey === 'string' ? focusKey : undefined);
     };
 
     // 4. Command: Open AI Self-Healing Patch Reviewer
