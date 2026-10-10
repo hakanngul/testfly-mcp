@@ -2,7 +2,7 @@
   "name": "testfly-vscode",
   "displayName": "TestFly — AI Test Automation Studio",
   "description": "Zero-boilerplate Java test automation studio for TestFly. Works seamlessly with Playwright MCP for live browser driving, provides 1-click MCP setup for Cursor/Claude/Copilot, and manages Action Cache & AI Self-Healing patches.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "testfly",
   "icon": "icon.png",
   "engines": {
@@ -29,11 +29,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hakanngul/testfly"
+    "url": "https://github.com/hakanngul/testfly-mcp",
+    "directory": "vscode-extension"
   },
   "homepage": "https://testfly.dev",
   "bugs": {
-    "url": "https://github.com/hakanngul/testfly/issues"
+    "url": "https://github.com/hakanngul/testfly-mcp/issues"
   },
   "license": "Apache-2.0",
   "activationEvents": [
