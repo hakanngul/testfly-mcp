@@ -50,6 +50,28 @@ export class RemediationService {
         }
     }
 
+    /** Resolve a patch by file name, accepting only files directly inside target/remediations. */
+    public static resolvePatch(workspaceRoot: string, fileName: string): string | undefined {
+        if (typeof fileName !== 'string' || path.basename(fileName) !== fileName || !fileName.endsWith('.patch')) {
+            return undefined;
+        }
+        const fullPath = path.join(this.getRemediationsDir(workspaceRoot), fileName);
+        return fs.existsSync(fullPath) ? fullPath : undefined;
+    }
+
+    /** Move an applied patch to target/remediations/applied/ so it is not offered again. */
+    public static archiveApplied(workspaceRoot: string, patchFilePath: string): string {
+        const appliedDir = path.join(this.getRemediationsDir(workspaceRoot), 'applied');
+        fs.mkdirSync(appliedDir, { recursive: true });
+        const parsed = path.parse(patchFilePath);
+        let destination = path.join(appliedDir, parsed.base);
+        for (let i = 1; fs.existsSync(destination); i++) {
+            destination = path.join(appliedDir, `${parsed.name}-${i}${parsed.ext}`);
+        }
+        fs.renameSync(patchFilePath, destination);
+        return destination;
+    }
+
     public static async applyPatch(workspaceRoot: string, patchFilePath: string): Promise<{ success: boolean; message: string }> {
         try {
             const root = fs.realpathSync(this.getRemediationsDir(workspaceRoot));

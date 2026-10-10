@@ -33,7 +33,7 @@ const TOOLS = [
               type: { type: 'string' },
               selector: { type: 'string' },
               role: { type: 'string' },
-              roleName: { type: 'string' },
+              roleName: { type: 'string', description: 'Accessible name, passed as getByRole(Role.X, name)' },
               text: { type: 'string' },
               value: { type: 'string' },
               expected: { type: 'string' }
@@ -104,24 +104,32 @@ const TOOLS = [
   }
 ];
 
+// Constants of io.testfly.locator.Role.
+const ROLES = new Set(['BUTTON', 'LINK', 'CHECKBOX', 'RADIO', 'SWITCH', 'TEXTBOX', 'SEARCHBOX', 'COMBOBOX', 'OPTION', 'HEADING', 'IMG', 'LIST', 'LISTITEM', 'TABLE', 'ROW', 'CELL', 'COLUMNHEADER', 'NAVIGATION', 'BANNER', 'CONTENTINFO', 'MAIN', 'REGION', 'ARTICLE', 'DIALOG', 'ALERT', 'ALERTDIALOG', 'TAB', 'TABLIST', 'TABPANEL', 'MENU', 'MENUITEM', 'PROGRESSBAR', 'SPINBUTTON', 'SLIDER', 'PARAGRAPH', 'SEPARATOR']);
+
+/** Java string literal with backslashes, quotes and control characters escaped. */
+function javaString(value) {
+  return JSON.stringify(String(value ?? '')).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
 function generateLocator(action) {
-  if (action.role && action.roleName) {
-    return `getByRole(Role.${action.role.toUpperCase()}, new RoleOptions().setName("${action.roleName}"))`;
-  }
-  if (action.role) {
-    return `getByRole(Role.${action.role.toUpperCase()})`;
+  const role = action.role ? action.role.toUpperCase() : undefined;
+  if (role && ROLES.has(role)) {
+    return action.roleName
+      ? `getByRole(Role.${role}, ${javaString(action.roleName)})`
+      : `getByRole(Role.${role})`;
   }
   if (action.text) {
-    return `getByText("${action.text}")`;
+    return `getByText(${javaString(action.text)})`;
   }
   if (action.selector) {
     if (action.selector.startsWith('//') || action.selector.startsWith('(//')) {
-      return `find(By.xpath("${action.selector}"))`;
+      return `find(By.xpath(${javaString(action.selector)}))`;
     }
-    if (action.selector.startsWith('#')) {
-      return `find(By.id("${action.selector.slice(1)}"))`;
+    if (/^#[A-Za-z][\w-]*$/.test(action.selector)) {
+      return `find(By.id(${javaString(action.selector.slice(1))}))`;
     }
-    return `find(By.cssSelector("${action.selector}"))`;
+    return `find(By.cssSelector(${javaString(action.selector)}))`;
   }
   return `find(By.cssSelector("*"))`;
 }
@@ -129,23 +137,24 @@ function generateLocator(action) {
 function generateStep(action) {
   switch (action.type) {
     case 'navigate':
-      return action.value ? `open("${action.value}");` : `open();`;
+      return action.value ? `open(${javaString(action.value)});` : `open();`;
     case 'click':
       return `${generateLocator(action)}.click();`;
     case 'type':
-      return `${generateLocator(action)}.type("${action.value || ''}");`;
+      return `${generateLocator(action)}.type(${javaString(action.value)});`;
     case 'select':
-      return `${generateLocator(action)}.selectOption("${action.value || ''}");`;
+      // TestFly's Locator has no select API; use Selenium's Select on the resolved element.
+      return `new Select(${generateLocator(action)}.element()).selectByVisibleText(${javaString(action.value)});`;
     case 'assert_title':
-      return `assertThatPage().hasTitle("${action.expected || ''}");`;
+      return `assertThatPage().hasTitle(${javaString(action.expected)});`;
     case 'assert_url':
-      return `assertThatPage().hasUrl("${action.expected || ''}");`;
+      return `assertThatPage().hasUrl(${javaString(action.expected)});`;
     case 'assert_visible':
       return `assertThat(${generateLocator(action)}).isVisible();`;
     case 'assert_text':
-      return `assertThat(${generateLocator(action)}).hasText("${action.expected || ''}");`;
+      return `assertThat(${generateLocator(action)}).hasText(${javaString(action.expected)});`;
     default:
-      return `// Unsupported action: ${JSON.stringify(action)}`;
+      return `// Unsupported action: ${JSON.stringify(action).replace(/[\r\n]/g, ' ')}`;
   }
 }
 
@@ -160,9 +169,9 @@ function handleToolCall(name, args) {
     const code = `package ${pkg};
 
 import io.testfly.locator.Role;
-import io.testfly.locator.RoleOptions;
 import io.testfly.test.BaseTest;
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.ui.Select;
 import org.testng.annotations.Test;
 
 /**

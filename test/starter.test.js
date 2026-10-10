@@ -44,3 +44,21 @@ test('MCP patch application requires explicit approval before touching files', (
   const response = JSON.parse(result.stdout.trim());
   assert.match(response.result.content[0].text, /confirm: true/);
 });
+
+test('MCP codegen emits only real TestFly APIs and escapes Java strings', () => {
+  const actions = [
+    { type: 'type', role: 'textbox', roleName: 'User "name"', value: 'a\\b\nc' },
+    { type: 'select', selector: '#a .country', value: 'TR' }
+  ];
+  const request = {
+    jsonrpc: '2.0', id: 1, method: 'tools/call',
+    params: { name: 'generate_testfly_code', arguments: { actions } }
+  };
+  const result = spawnSync(process.execPath, [path.join(root, 'bin/testfly-mcp.js')], {
+    input: JSON.stringify(request) + '\n', encoding: 'utf8'
+  });
+  const code = JSON.parse(result.stdout.trim()).result.content[0].text;
+  assert.doesNotMatch(code, /RoleOptions|selectOption/);
+  assert.match(code, /getByRole\(Role\.TEXTBOX, "User \\"name\\""\)\.type\("a\\\\b\\nc"\);/);
+  assert.match(code, /new Select\(find\(By\.cssSelector\("#a \.country"\)\)\.element\(\)\)\.selectByVisibleText\("TR"\);/);
+});
