@@ -72,7 +72,47 @@ function serversFor(target: McpTarget, bridgeScript: string): Record<string, Ser
     return { testfly, playwright };
 }
 
+export interface McpPreview extends McpTargetInfo {
+    /** True when the file already exists. */
+    exists: boolean;
+    /** Names of other servers in the file that are kept. */
+    keptServers: string[];
+    /** True when the file already registers exactly this bridge. */
+    upToDate: boolean;
+    /** The servers block TestFly adds, as it appears in the file. */
+    snippet: string;
+    /** Full file content after applying. */
+    after?: string;
+    /** Why this target cannot be configured (invalid JSON, no workspace…). */
+    error?: string;
+}
+
 export class McpRegistrar {
+    /**
+     * What register() would write for one target, without touching the disk.
+     * Uses the same merge as register(), so the preview is exactly what gets applied.
+     */
+    public static preview(target: McpTarget, bridgeScript: string, workspaceRoot?: string, home?: string): McpPreview {
+        const info = this.targetInfo(target, workspaceRoot, home);
+        const key = CONFIG_KEY[target];
+        const servers = serversFor(target, bridgeScript);
+        const snippet = JSON.stringify({ [key]: servers }, null, 2);
+        const base = { ...info, exists: false, keptServers: [] as string[], upToDate: false, snippet };
+        if (!info.global && !workspaceRoot) return { ...base, error: 'Open a workspace folder first.' };
+        const exists = fs.existsSync(info.file);
+        try {
+            const current = readConfig(info.file, key);
+            const previous: Record<string, unknown> = current[key] ?? {};
+            const keptServers = Object.keys(previous).filter(name => !(name in servers));
+            const upToDate = Object.keys(servers).every(name => JSON.stringify(previous[name]) === JSON.stringify((servers as any)[name]));
+            const after = JSON.stringify({ ...current, [key]: { ...previous, ...servers } }, null, 2) + '\n';
+            return { ...base, exists, keptServers, upToDate, after };
+        } catch (err: any) {
+            const reason = err instanceof SyntaxError ? `${info.file} is not valid JSON (${err.message}). Fix it first; TestFly never overwrites an unreadable file.` : err.message;
+            return { ...base, exists, error: reason };
+        }
+    }
+
     /** Antigravity reads its MCP servers from a user-level file; there is no per-workspace file. */
     public static antigravityConfigPath(home: string = os.homedir()): string {
         return path.join(home, '.gemini', 'config', 'mcp_config.json');

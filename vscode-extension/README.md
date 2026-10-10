@@ -9,7 +9,7 @@ Zero Python. Zero setup headaches.
 ## ✈️ Key Capabilities
 
 - 🤖 **Playwright MCP Integration:** Works seamlessly with the official Playwright MCP for ultra-fast live browser control and accessibility inspection.
-- ⚡ **Workspace MCP Setup:** Select a local bridge script, preview destinations, and confirm changes to Cursor and VS Code workspace settings; global settings are not edited.
+- ⚡ **MCP Setup:** A three-step page: choose the bridge, pick assistants (Antigravity, VS Code, Cursor), then review the exact JSON before applying, or copy it. VS Code and Cursor use workspace files; Antigravity uses its user-level `~/.gemini/config/mcp_config.json`. Other servers are always kept.
 - 🎯 **Action Cache Explorer:** Visual Webview panel to inspect, invalidate, and manage autonomous `act("Goal")` action plans frozen in `.testfly/action-cache.json`.
 - 🩹 **AI Self-Healing Patch Reviewer:** Visual diff viewer to inspect and apply `.patch` remediations synthesized by TestFly's `AiHealingEngine` directly to your test code.
 - ⚙️ **Visual testfly.yml Editor:** In-IDE editor for timeouts, parallel execution, and AI providers (Gemini, Claude, OpenAI).
@@ -23,5 +23,5 @@ Zero Python. Zero setup headaches.
 
 1. Install this extension in VS Code.
 2. Open the **TestFly Studio** sidebar on the Activity Bar.
-3. Click **Configure Workspace MCP**, select your local `bin/testfly-mcp.js`, and approve the two workspace configuration changes.
+3. Click **Set Up MCP for AI Assistants**, keep the bundled bridge, select your assistants, review the generated configuration and click **Apply**.
 4. Start the MCP servers in your client when you need AI tooling; a compatible Node installation and Playwright MCP are required.
