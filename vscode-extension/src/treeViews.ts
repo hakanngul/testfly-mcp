@@ -71,6 +71,12 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
                 'Check JDK, Maven, Node, and workspace configuration'
             ),
             new QuickActionItem(
+                '📄 Open Test Report',
+                'testfly.openReport',
+                'file-code',
+                'Open target/testfly-report.html, Allure serve, or ReportPortal link'
+            ),
+            new QuickActionItem(
                 '📖 Open Documentation',
                 'testfly.openDocs',
                 'book',
