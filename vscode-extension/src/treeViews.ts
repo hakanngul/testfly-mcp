@@ -29,61 +29,55 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
     getChildren(): Thenable<QuickActionItem[]> {
         return Promise.resolve([
             new QuickActionItem(
-                '⚡ Set Up MCP (Antigravity / VS Code / Cursor)',
+                'Set Up MCP for AI Assistants',
                 'testfly.multiMcpSetup',
                 'hubot',
                 'Register the TestFly bridge and Playwright MCP for your AI assistant'
             ),
             new QuickActionItem(
-                '🎯 Open Action Cache Explorer',
+                'Action Cache',
                 'testfly.openActionCache',
                 'zap',
                 'View and manage compiled act("Goal") plans in .testfly/action-cache.json'
             ),
             new QuickActionItem(
-                '🩹 AI Self-Healing Patch Reviewer',
+                'Self-Healing Patches',
                 'testfly.openPatchReviewer',
                 'tools',
                 'Review and apply git diff patches from target/remediations/'
             ),
             new QuickActionItem(
-                '⚙️ Visual testfly.yml Editor',
+                'Edit testfly.yml',
                 'testfly.openVisualConfig',
                 'gear',
                 'Open interactive configuration editor for testfly.yml'
             ),
             new QuickActionItem(
-                '🚀 Scaffold Java 21 Project',
+                'Scaffold Java 21 Project',
                 'testfly.initProject',
                 'file-code',
                 'Generate modern pom.xml, testfly.yml, and smoke test'
             ),
             new QuickActionItem(
-                '📄 Initialize testfly.yml Config',
+                'Initialize testfly.yml Config',
                 'testfly.initConfig',
                 'new-file',
                 'Create a starter testfly.yml in the workspace root'
             ),
             new QuickActionItem(
-                '📊 Run CI Test Sharder',
-                'testfly.shardTests',
-                'split-horizontal',
-                'Partition test suites across parallel CI nodes with LPT algorithm'
-            ),
-            new QuickActionItem(
-                '🩺 Check Environment Diagnostics',
+                'Check Environment Diagnostics',
                 'testfly.checkStatus',
                 'pulse',
                 'Check JDK, Maven, Node, and workspace configuration'
             ),
             new QuickActionItem(
-                '📄 Open Test Report',
+                'Open Test Report',
                 'testfly.openReport',
                 'file-code',
                 'Open target/testfly-report.html, Allure serve, or ReportPortal link'
             ),
             new QuickActionItem(
-                '📖 Open Documentation',
+                'Open Documentation',
                 'testfly.openDocs',
                 'book',
                 'Browse TestFly guides and API docs'
@@ -122,7 +116,12 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
         const folders = vscode.workspace.workspaceFolders;
         const root = folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
         const diag = await Checker.getDiagnostics(root);
-        const mcp = McpRegistrar.status(McpRegistrar.hostTarget(vscode.env.appName), root);
+        // The IDE this runs in first; other assistants only once they are (or were) set up.
+        const host = McpRegistrar.hostTarget(vscode.env.appName);
+        const targets = (['antigravity', 'vscode', 'cursor'] as const)
+            .map(t => McpRegistrar.status(t, root))
+            .filter(t => t.target === host || t.registered)
+            .sort((a, b) => Number(b.target === host) - Number(a.target === host));
 
         return [
             new StatusItem('JDK 21+', diag.javaInstalled ? (diag.javaVersion || 'Ready') : 'Missing', diag.javaInstalled ? 'pass-filled' : 'error'),
@@ -131,7 +130,7 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
             new StatusItem('testfly.yml', diag.hasTestFlyYml ? 'Present (✓)' : 'Not Found', diag.hasTestFlyYml ? 'pass-filled' : 'info'),
             new StatusItem('Action Cache', `${diag.actionCacheCount} goals`, 'zap'),
             new StatusItem('Self-Healing Patches', `${diag.remediationPatchCount} patches`, diag.remediationPatchCount > 0 ? 'tools' : 'pass'),
-            this.mcpItem(mcp)
+            ...targets.map(t => this.mcpItem(t))
         ];
     }
 
@@ -179,7 +178,8 @@ export class ActionCacheTreeProvider implements vscode.TreeDataProvider<vscode.T
             item.tooltip = `Goal: ${p.goal}\nCompiled: ${new Date(p.createdAt).toLocaleString()}`;
             item.command = {
                 command: 'testfly.openActionCache',
-                title: 'Open Action Cache'
+                title: 'Open Action Cache',
+                arguments: [p.key]
             };
             return item;
         }));

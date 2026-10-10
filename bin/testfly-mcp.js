@@ -63,7 +63,8 @@ const TOOLS = [
       properties: {
         workspaceRoot: { type: 'string', description: 'Root directory of the TestFly project' },
         action: { type: 'string', enum: ['invalidate', 'clear_all'], default: 'invalidate' },
-        goal: { type: 'string', description: 'Specific goal name to invalidate' }
+        goal: { type: 'string', description: 'Goal to invalidate (case-insensitive, every URL)' },
+        key: { type: 'string', description: 'Exact cache key ("/path::goal") to invalidate instead of a goal' }
       },
       required: ['action']
     }
@@ -158,6 +159,17 @@ function generateStep(action) {
   }
 }
 
+/** Same key as io.testfly.agent.ActionCache.buildKey: URL path + "::" + lower-cased goal. */
+function cacheKey(url, goal) {
+  let urlPath = '';
+  if (url && String(url).trim()) {
+    const absolute = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*([^?#]*)/i.exec(url);
+    const part = absolute ? absolute[1] : String(url).split(/[?#]/)[0];
+    urlPath = part.trim() ? part : url;
+  }
+  return `${urlPath}::${String(goal || '').trim().toLowerCase()}`;
+}
+
 function handleToolCall(name, args) {
   const root = args.workspaceRoot || process.cwd();
 
@@ -203,14 +215,25 @@ ${steps}
       return { content: [{ type: 'text', text: 'Action cache file does not exist.' }] };
     }
     if (args.action === 'clear_all') {
-      fs.writeFileSync(cachePath, '[]', 'utf8');
+      // TestFly loads the cache as a JSON object, so an empty cache is {} rather than [].
+      fs.writeFileSync(cachePath, '{}\n', 'utf8');
       return { content: [{ type: 'text', text: 'Cleared all action plans.' }] };
     }
     try {
       const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-      const filtered = Array.isArray(data) ? data.filter(p => p.goal !== args.goal) : [];
-      fs.writeFileSync(cachePath, JSON.stringify(filtered, null, 2), 'utf8');
-      return { content: [{ type: 'text', text: `Invalidated goal: ${args.goal}` }] };
+      // Older bridge versions wrote an array; convert it to TestFly's "/path::goal" map.
+      const entries = Array.isArray(data)
+        ? data.filter(p => p && typeof p.goal === 'string').map(p => [cacheKey(p.urlPattern, p.goal), p])
+        : Object.entries(data && typeof data === 'object' ? data : {});
+      const goal = String(args.goal || '').trim().toLowerCase();
+      const kept = entries.filter(([key, plan]) => args.key
+        ? key !== args.key
+        : String(plan && plan.goal || '').trim().toLowerCase() !== goal);
+      if (kept.length === entries.length) {
+        return { content: [{ type: 'text', text: `No cached plan matched ${args.key ? `key "${args.key}"` : `goal "${args.goal}"`}.` }] };
+      }
+      fs.writeFileSync(cachePath, JSON.stringify(Object.fromEntries(kept), null, 2) + '\n', 'utf8');
+      return { content: [{ type: 'text', text: `Invalidated ${entries.length - kept.length} plan(s) for ${args.key || args.goal}.` }] };
     } catch (e) {
       return { content: [{ type: 'text', text: `Failed: ${e.message}` }] };
     }

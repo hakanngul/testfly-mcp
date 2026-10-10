@@ -5,7 +5,7 @@ export const EXTENSION_ID = 'testfly-vscode';
 export const DISPLAY_NAME = 'TestFly Studio';
 export const TESTFLY_VERSION = '1.0.7';
 export const JAVA_VERSION = '21';
-export const DOCS_URL = 'https://hakanngul.github.io/testfly';
+export const DOCS_URL = 'https://testfly.dev';
 export const REPO_URL = 'https://github.com/hakanngul/testfly';
 
 export const DEFAULT_TESTFLY_YML = fs.readFileSync(path.join(__dirname, '..', 'resources', 'testfly.yml'), 'utf8');

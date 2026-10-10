@@ -61,7 +61,8 @@ export const TESTFLY_BRIDGE_TOOLS: McpToolDefinition[] = [
             properties: {
                 workspaceRoot: { type: 'string', description: 'Root directory of the TestFly project' },
                 action: { type: 'string', enum: ['invalidate', 'clear_all'], default: 'invalidate' },
-                goal: { type: 'string', description: 'Specific goal name to invalidate (required when action=invalidate)' }
+                goal: { type: 'string', description: 'Goal to invalidate (case-insensitive, every URL)' },
+                key: { type: 'string', description: 'Exact cache key ("/path::goal") to invalidate instead of a goal' }
             },
             required: ['action']
         }
@@ -153,8 +154,10 @@ export class McpBridgeHandler {
                     const ok = ActionCacheService.clearAll(root);
                     return { content: [{ type: 'text', text: ok ? 'Cleared all action plans.' : 'Failed to clear.' }] };
                 }
-                const ok = ActionCacheService.invalidateGoal(root, args.goal || '');
-                return { content: [{ type: 'text', text: ok ? `Invalidated goal: ${args.goal}` : 'Failed to invalidate.' }] };
+                const ok = args.key
+                    ? ActionCacheService.invalidate(root, args.key)
+                    : ActionCacheService.invalidateGoal(root, args.goal || '');
+                return { content: [{ type: 'text', text: ok ? `Invalidated: ${args.key || args.goal}` : 'No cached plan matched.' }] };
             }
 
             case 'list_remediations': {

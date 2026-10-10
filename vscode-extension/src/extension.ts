@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DOCS_URL, DEFAULT_POM_XML, DEFAULT_TESTFLY_YML, DEFAULT_SMOKE_TEST } from './constants';
 import { Checker } from './checker';
-import { McpRegistrar, McpTarget } from './registrar';
 import { initTestFlyConfig } from './configGenerator';
 import { TestFlyStatusBar } from './statusBar';
 import {
@@ -15,6 +14,7 @@ import {
 import { ActionCacheWebview } from './actionCacheWebview';
 import { PatchReviewerWebview } from './patchReviewerWebview';
 import { ConfigWebview } from './configWebview';
+import { McpSetupWebview } from './mcpSetupWebview';
 import { decideReportActions, discoverReports } from './reportService';
 import { installBundledBridge } from './bridgeInstaller';
 
@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
         let timer: NodeJS.Timeout | undefined;
         const onDiskChange = () => {
             if (timer) clearTimeout(timer);
-            timer = setTimeout(() => { refreshAll(); PatchReviewerWebview.refresh(); }, 300);
+            timer = setTimeout(() => { refreshAll(); PatchReviewerWebview.refresh(); ActionCacheWebview.refresh(); }, 300);
         };
         for (const glob of ['target/remediations/*.patch', '.testfly/action-cache.json', 'testfly.{yml,yaml}', '.vscode/mcp.json', '.cursor/mcp.json']) {
             const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchRoot, glob));
@@ -74,76 +74,18 @@ export async function activate(context: vscode.ExtensionContext) {
     }
 
     // 2. Command: MCP setup for the current IDE (and optionally others)
-    const runMultiMcpSetup = async () => {
-        const root = getWorkspaceRoot();
-        const host = McpRegistrar.hostTarget(vscode.env.appName);
-
-        let bridgeScript = bundledBridge;
-        const source = await vscode.window.showQuickPick(
-            [
-                ...(bundledBridge ? [{ label: '$(package) Bundled TestFly bridge', description: 'Recommended', detail: bundledBridge, id: 'bundled' }] : []),
-                { label: '$(folder-opened) Browse for testfly-mcp.js…', description: 'Use a local checkout instead', id: 'browse' }
-            ],
-            { title: 'TestFly MCP: Which bridge should the AI assistant start?' }
-        );
-        if (!source) return;
-        if (source.id === 'browse') {
-            const selected = await vscode.window.showOpenDialog({
-                title: 'Select your local testfly-mcp.js bridge script',
-                canSelectFiles: true,
-                canSelectMany: false,
-                filters: { JavaScript: ['js'] }
-            });
-            if (!selected?.length) return;
-            bridgeScript = selected[0].fsPath;
-        }
-        if (!bridgeScript) return;
-
-        const targets: McpTarget[] = ['antigravity', 'vscode', 'cursor'];
-        const picks = await vscode.window.showQuickPick(
-            targets.map(t => {
-                const info = McpRegistrar.targetInfo(t, root);
-                const unavailable = !info.global && !root;
-                return {
-                    label: info.label + (t === host ? ' (this IDE)' : ''),
-                    description: unavailable ? 'Open a workspace folder first' : (info.global ? 'user settings' : 'workspace'),
-                    detail: info.file,
-                    picked: t === host && !unavailable,
-                    target: t,
-                    unavailable
-                };
-            }),
-            { title: 'TestFly MCP: Register in which assistants?', canPickMany: true }
-        );
-        const chosen = (picks || []).filter(p => !p.unavailable);
-        if (chosen.length === 0) return;
-
-        const files = chosen.map(p => `• ${p.detail}`).join('\n');
-        const confirm = await vscode.window.showWarningMessage(
-            `Add the "testfly" and "playwright" MCP servers to:\n${files}\n\nOther server entries are kept.`,
-            { modal: true }, 'Configure'
-        );
-        if (confirm !== 'Configure') return;
-        try {
-            McpRegistrar.register(chosen.map(p => p.target), bridgeScript, root);
-            const reload = chosen.some(p => p.target === 'antigravity')
-                ? ' Reload MCP servers in Antigravity (Agent panel → MCP Servers → Refresh) to pick them up.'
-                : '';
-            vscode.window.showInformationMessage(`TestFly MCP configured for ${chosen.map(p => McpRegistrar.targetInfo(p.target).label).join(', ')}.${reload}`);
-            refreshAll();
-        } catch (error: any) {
-            vscode.window.showErrorMessage(`TestFly MCP setup stopped: ${error.message}`);
-        }
+    const runMultiMcpSetup = () => {
+        McpSetupWebview.show(context, bundledBridge, getWorkspaceRoot, refreshAll);
     };
 
     // 3. Command: Open Action Cache Explorer
-    const runOpenActionCache = () => {
+    const runOpenActionCache = (focusKey?: unknown) => {
         const root = getWorkspaceRoot();
         if (!root) {
             vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
             return;
         }
-        ActionCacheWebview.show(context, root);
+        ActionCacheWebview.show(context, root, typeof focusKey === 'string' ? focusKey : undefined);
     };
 
     // 4. Command: Open AI Self-Healing Patch Reviewer
@@ -332,7 +274,7 @@ export async function activate(context: vscode.ExtensionContext) {
         if (!selection) return;
 
         switch (selection.detail) {
-            case 'multiMcpSetup': await runMultiMcpSetup(); break;
+            case 'multiMcpSetup': runMultiMcpSetup(); break;
             case 'openActionCache': runOpenActionCache(); break;
             case 'openPatchReviewer': runOpenPatchReviewer(); break;
             case 'openVisualConfig': runOpenVisualConfig(); break;

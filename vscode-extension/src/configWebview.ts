@@ -4,77 +4,8 @@ import * as path from 'path';
 import { DEFAULT_TESTFLY_YML } from './constants';
 import { escapeHtml, getNonce } from './webviewUtils';
 import { getValue, setValue, Scalar } from './yamlFields';
-
-type FieldType = 'select' | 'text' | 'number' | 'boolean';
-
-interface Field {
-    path: string[];
-    label: string;
-    type: FieldType;
-    options?: string[];
-    hint?: string;
-    /** Value TestFly uses when the key is absent. */
-    fallback?: Scalar;
-}
-
-interface Section {
-    title: string;
-    fields: Field[];
-}
-
-// Allowed values and defaults follow io.testfly.config.TestFlyConfig / ConfigurationLoader.
-const SECTIONS: Section[] = [
-    {
-        title: 'Execution',
-        fields: [
-            { path: ['execution', 'mode'], label: 'Mode', type: 'select', options: ['local', 'remote', 'browserstack', 'saucelabs'], hint: 'Required.' },
-            { path: ['execution', 'baseUrl'], label: 'Base URL', type: 'text', hint: 'open("/path") is resolved against this. ${ENV_VAR} is supported.' },
-            { path: ['execution', 'gridUrl'], label: 'Grid URL', type: 'text', hint: 'Required when mode is remote.' },
-            { path: ['execution', 'parallel'], label: 'Parallel', type: 'select', options: ['none', 'methods', 'classes', 'tests', 'instances'], fallback: 'none' },
-            { path: ['execution', 'threadCount'], label: 'Thread count', type: 'number', fallback: 1, hint: '1 to CPU cores × 2.' },
-            { path: ['execution', 'maxActiveSessions'], label: 'Max active sessions', type: 'number', fallback: 5 }
-        ]
-    },
-    {
-        title: 'Browser',
-        fields: [
-            { path: ['browser', 'name'], label: 'Browser', type: 'select', options: ['chrome', 'firefox', 'edge', 'safari'], hint: 'Required unless browser.matrix is set.' },
-            { path: ['browser', 'headless'], label: 'Headless', type: 'boolean', fallback: false },
-            { path: ['browser', 'lifecycle'], label: 'Driver lifecycle', type: 'select', options: ['per-test', 'per-suite'], fallback: 'per-test' }
-        ]
-    },
-    {
-        title: 'Timeouts (seconds)',
-        fields: [
-            { path: ['timeouts', 'explicit'], label: 'Explicit wait', type: 'number', hint: 'Required, > 0.' },
-            { path: ['timeouts', 'pageLoad'], label: 'Page load', type: 'number', hint: 'Required, > 0.' }
-        ]
-    },
-    {
-        title: 'Reporting',
-        fields: [
-            { path: ['reporting', 'htmlReport'], label: 'HTML report', type: 'boolean', fallback: true },
-            { path: ['reporting', 'allure', 'enabled'], label: 'Allure results', type: 'boolean', fallback: false }
-        ]
-    },
-    {
-        title: 'AI',
-        fields: [
-            { path: ['ai', 'enabled'], label: 'AI features enabled', type: 'boolean', fallback: true, hint: 'Master switch for the options below.' },
-            { path: ['ai', 'provider'], label: 'Provider', type: 'select', options: ['claude', 'openai', 'gemini'], fallback: 'claude' },
-            { path: ['ai', 'model'], label: 'Model', type: 'text', hint: 'Leave empty for the provider default.' },
-            { path: ['ai', 'failureAnalysis'], label: 'Failure analysis', type: 'boolean', fallback: false },
-            { path: ['ai', 'generatePatch'], label: 'Generate healing patches', type: 'boolean', fallback: false, hint: 'Writes target/remediations/*.patch.' }
-        ]
-    },
-    {
-        title: 'Locators',
-        fields: [
-            { path: ['locators', 'selfHealing'], label: 'Self-healing', type: 'boolean', fallback: false },
-            { path: ['locators', 'aiHealing'], label: 'AI healing', type: 'boolean', fallback: false }
-        ]
-    }
-];
+import { EXAMPLES, FIELDS, Field, SECTIONS, fieldKey, validate } from './configSchema';
+import { pageHeader, renderPage } from './webviewShell';
 
 function findConfig(root: string): string | undefined {
     return ['testfly.yml', 'testfly.yaml'].map(f => path.join(root, f)).find(f => fs.existsSync(f));
@@ -82,28 +13,10 @@ function findConfig(root: string): string | undefined {
 
 function readValues(yaml: string): Record<string, Scalar | undefined> {
     const values: Record<string, Scalar | undefined> = {};
-    for (const field of SECTIONS.flatMap(s => s.fields)) {
-        values[field.path.join('.')] = getValue(yaml, field.path);
+    for (const field of FIELDS) {
+        values[fieldKey(field)] = getValue(yaml, field.path);
     }
     return values;
-}
-
-function validate(values: Record<string, Scalar | undefined>): string[] {
-    const problems: string[] = [];
-    if (!values['execution.mode']) problems.push('execution.mode is required.');
-    if (values['execution.mode'] === 'remote' && !values['execution.gridUrl']) problems.push('execution.gridUrl is required for remote mode.');
-    if (!values['browser.name']) problems.push('browser.name is required (unless you use browser.matrix).');
-    for (const key of ['timeouts.explicit', 'timeouts.pageLoad']) {
-        const v = values[key];
-        if (typeof v !== 'number' || v <= 0) problems.push(`${key} must be a number greater than 0.`);
-    }
-    const threads = values['execution.threadCount'];
-    if (threads !== undefined && (typeof threads !== 'number' || threads < 1)) problems.push('execution.threadCount must be at least 1.');
-    const aiOff = values['ai.enabled'] === false;
-    if (aiOff && (values['ai.failureAnalysis'] === true || values['ai.generatePatch'] === true || values['locators.aiHealing'] === true)) {
-        problems.push('ai.enabled is false, so failure analysis, patch generation and AI healing will not run.');
-    }
-    return problems;
 }
 
 export class ConfigWebview {
@@ -122,14 +35,13 @@ export class ConfigWebview {
             { enableScripts: true, retainContextWhenHidden: true }
         );
         ConfigWebview.currentPanel = panel;
+        panel.webview.html = ConfigWebview.html(panel.webview.cspSource);
 
-        const nonce = getNonce();
-        panel.webview.html = ConfigWebview.html(nonce, panel.webview.cspSource);
-
-        const postState = async () => {
+        /** @param saved key that was just written; @param failed a write that could not be made. */
+        const postState = async (saved?: string, failed?: { key?: string; message: string }) => {
             const file = findConfig(workspaceRoot);
             if (!file) {
-                panel.webview.postMessage({ type: 'state', exists: false });
+                panel.webview.postMessage({ type: 'state', exists: false, failed });
                 return;
             }
             const doc = await vscode.workspace.openTextDocument(file);
@@ -140,7 +52,9 @@ export class ConfigWebview {
                 fileName: path.basename(file),
                 dirty: doc.isDirty,
                 values,
-                problems: validate(values)
+                problems: validate(values),
+                saved,
+                failed
             });
         };
 
@@ -173,13 +87,16 @@ export class ConfigWebview {
                 } else if (message.command === 'openYaml') {
                     const file = findConfig(workspaceRoot);
                     if (file) await vscode.window.showTextDocument(vscode.Uri.file(file), { viewColumn: vscode.ViewColumn.Beside });
+                } else if (message.command === 'copy') {
+                    await vscode.env.clipboard.writeText(String(message.text ?? ''));
+                    panel.webview.postMessage({ type: 'copied', id: message.id });
                 } else if (message.command === 'set') {
                     const file = findConfig(workspaceRoot);
-                    const field = SECTIONS.flatMap(s => s.fields).find(f => f.path.join('.') === message.key);
+                    const field = FIELDS.find(f => fieldKey(f) === message.key);
                     if (!file || !field) return;
                     const value = ConfigWebview.coerce(field, message.value);
                     if (value === undefined) {
-                        await postState();
+                        await postState(undefined, { key: message.key, message: field.type === 'number' ? 'Enter a number. Clearing a value is done in the YAML.' : 'Clearing a value is done in the YAML.' });
                         return;
                     }
                     const doc = await vscode.workspace.openTextDocument(file);
@@ -188,11 +105,14 @@ export class ConfigWebview {
                     const edit = new vscode.WorkspaceEdit();
                     edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), next);
                     // Saving keeps the form and the file in sync; the change stays undoable in the text editor.
-                    if (await vscode.workspace.applyEdit(edit)) await doc.save();
+                    if (await vscode.workspace.applyEdit(edit) && await doc.save()) {
+                        await postState(message.key);
+                    } else {
+                        await postState(undefined, { key: message.key, message: `${path.basename(file)} could not be saved.` });
+                    }
                 }
             } catch (err: any) {
-                vscode.window.showErrorMessage(`TestFly: ${err.message}`);
-                await postState();
+                await postState(undefined, { key: message.key, message: err.message });
             }
         });
     }
@@ -207,145 +127,256 @@ export class ConfigWebview {
         return text === '' ? undefined : text;
     }
 
-    private static html(nonce: string, cspSource: string): string {
+    private static html(cspSource: string): string {
+        const nav = SECTIONS.map(s => `<a href="#sec-${s.id}" class="chip" data-section="${s.id}">${escapeHtml(s.title)}<span class="chip-count" hidden></span></a>`).join('');
         const sections = SECTIONS.map(section => `
-            <fieldset>
-                <legend>${escapeHtml(section.title)}</legend>
-                ${section.fields.map(f => ConfigWebview.fieldHtml(f)).join('')}
-            </fieldset>`).join('');
-
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TestFly Configuration</title>
-<style>
-    body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); padding: 16px 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); max-width: 760px; }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--vscode-widget-border, transparent); padding-bottom: 12px; margin-bottom: 12px; }
-    h1 { margin: 0; font-size: 18px; font-weight: 600; }
-    .sub { margin: 4px 0 0; color: var(--vscode-descriptionForeground); }
-    button { padding: 4px 12px; border: 1px solid var(--vscode-button-border, transparent); border-radius: 2px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); font: inherit; }
-    button:hover { background: var(--vscode-button-hoverBackground); }
-    button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-    fieldset { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; margin: 0 0 14px; padding: 8px 14px 4px; }
-    legend { font-weight: 600; padding: 0 6px; }
-    .row { display: grid; grid-template-columns: 180px 1fr; gap: 4px 12px; align-items: center; padding: 6px 0; }
-    .row label { color: var(--vscode-foreground); }
-    .key { display: block; font-family: var(--vscode-editor-font-family); font-size: 11px; color: var(--vscode-descriptionForeground); }
-    .hint { grid-column: 2; font-size: 12px; color: var(--vscode-descriptionForeground); }
-    input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 4px 6px; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px; }
-    select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border-color: var(--vscode-dropdown-border, transparent); }
-    input:focus, select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-    input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--vscode-button-background); }
-    .unset { font-style: italic; }
-    .problems { margin: 0 0 14px; padding: 8px 12px; border-left: 3px solid var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground, transparent); }
-    .problems ul { margin: 4px 0 0; padding-left: 18px; }
-    .empty { margin: 40px auto; max-width: 480px; text-align: center; color: var(--vscode-descriptionForeground); }
-    [hidden] { display: none !important; }
-    @media (max-width: 520px) { .row { grid-template-columns: 1fr; } .hint { grid-column: 1; } }
-</style>
-</head>
-<body>
-<div class="top">
-    <div>
-        <h1>TestFly configuration</h1>
-        <p class="sub" id="status">Loading…</p>
+<section class="group" id="sec-${section.id}" aria-labelledby="h-${section.id}">
+    <div class="group-head">
+        <h2 id="h-${section.id}">${escapeHtml(section.title)}</h2>
+        <p class="muted">${escapeHtml(section.description)}</p>
     </div>
-    <button class="secondary" id="openYaml" hidden>Open YAML</button>
-</div>
-<div id="empty" class="empty" hidden>
-    <p>No <code>testfly.yml</code> in this workspace.</p>
-    <button id="create">Create testfly.yml from starter template</button>
-</div>
-<div id="form" hidden>
-    <div id="problems" class="problems" hidden><strong>Check these before running tests:</strong><ul></ul></div>
-    ${sections}
-</div>
-<script nonce="${nonce}">
-    const vscode = acquireVsCodeApi();
-    const $ = (id) => document.getElementById(id);
-    let applying = false;
+    ${section.fields.map(f => ConfigWebview.fieldHtml(f)).join('')}
+</section>`).join('');
+        const examples = EXAMPLES.map((e, i) => `
+<div class="example">
+    <div class="example-head"><b>${escapeHtml(e.title)}</b> <span class="muted">${escapeHtml(e.description)}</span>
+        <button class="secondary push" type="button" data-copy="${i}">Copy</button><span class="flash" id="copied-${i}"></span></div>
+    <pre><code>${escapeHtml(e.yaml)}</code></pre>
+</div>`).join('');
 
-    document.getElementById('create').addEventListener('click', () => vscode.postMessage({ command: 'create' }));
-    document.getElementById('openYaml').addEventListener('click', () => vscode.postMessage({ command: 'openYaml' }));
+        const body = `
+${pageHeader('testfly.yml', '<span id="status">Loading…</span> <span id="saved" class="flash" aria-hidden="true"></span>', `
+    <button class="secondary" id="openYaml" data-command="openYaml" hidden>Open YAML</button>`)}
+<main>
+    <details class="guide" id="guide">
+        <summary>Usage guide &amp; example configurations</summary>
+        <div>
+            <ol>
+                <li><b>Basics first.</b> Pick a run mode and a browser and set the base URL; these, plus the two timeouts, are all TestFly needs to start.</li>
+                <li><b>Changes save immediately</b> to the YAML file. Comments, ordering and keys this form does not show are kept.</li>
+                <li><b>Fix red messages before running.</b> They are settings TestFly rejects at startup. Yellow ones are settings that would silently do nothing.</li>
+                <li><b>Undo or clear a value</b> in the YAML (Open YAML, then <kbd>Ctrl/Cmd+Z</kbd>). Lists and maps such as <code>browser.matrix</code> are edited there too.</li>
+                <li><b>Keep secrets out of the file.</b> Write <code>\${ANTHROPIC_API_KEY}</code> and put the value in your environment or <code>.env</code>.</li>
+            </ol>
+            <h2>Examples</h2>
+            <p class="muted">Copy a block into testfly.yml and adjust it; matching keys replace the existing ones.</p>
+            ${examples}
+        </div>
+    </details>
+    <div id="loading"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div id="empty" class="empty" hidden>
+        <h2>No testfly.yml in this workspace</h2>
+        <p>TestFly reads its settings from <code>testfly.yml</code> in the project root. Start from the starter template and adjust it here.</p>
+        <div class="actions"><button data-command="create">Create testfly.yml</button></div>
+    </div>
+    <div id="fail" class="callout err" role="alert" hidden></div>
+    <div id="form" hidden>
+        <nav class="chips" aria-label="Sections">${nav}</nav>
+        <div id="summary" class="callout" hidden></div>
+        ${sections}
+    </div>
+</main>`;
 
+        const css = `
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; position: sticky; top: 0; padding: 6px 0; background: var(--vscode-editor-background); z-index: 1; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--tf-border); border-radius: 12px; color: var(--vscode-foreground); text-decoration: none; font-size: 12px; }
+.chip:hover { background: var(--tf-hover); color: var(--vscode-foreground); }
+.chip-count { font-weight: 600; }
+.chip-count.err { color: var(--tf-err); }
+.chip-count.warn { color: var(--tf-warn); }
+.group { border: 1px solid var(--tf-border); border-radius: var(--tf-radius); margin: 0 0 14px; padding: 4px 14px 6px; scroll-margin-top: 44px; max-width: 820px; }
+.group-head { padding: 8px 0 4px; border-bottom: 1px solid var(--tf-border); margin-bottom: 4px; }
+.group-head h2 { margin: 0; font-size: 14px; }
+.group-head p { margin: 2px 0 0; }
+.row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 2px 14px; align-items: start; padding: 8px 0; scroll-margin-top: 60px; }
+.row + .row { border-top: 1px dashed var(--tf-border); }
+.row > label { padding-top: 3px; }
+.row .key { display: block; font-family: var(--tf-mono); font-size: 11px; color: var(--tf-muted); overflow-wrap: anywhere; }
+.row .req { color: var(--tf-err); margin-left: 2px; }
+.control { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.control .check { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.help { font-size: 12px; color: var(--tf-muted); }
+.msg { font-size: 12px; display: flex; gap: 6px; }
+.msg.err { color: var(--tf-err); }
+.msg.warn { color: var(--tf-warn); }
+.row.has-err input, .row.has-err select { border-color: var(--vscode-inputValidation-errorBorder, var(--tf-err)); }
+.row.has-warn input, .row.has-warn select { border-color: var(--vscode-inputValidation-warningBorder, var(--tf-warn)); }
+.row.just-saved { animation: tf-saved 1.2s ease-out; }
+@keyframes tf-saved { from { background: var(--vscode-diffEditor-insertedLineBackground, rgba(46,160,67,.15)); } to { background: transparent; } }
+.unset { font-style: italic; }
+.example { margin: 8px 0 12px; }
+.example-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#summary ul a { color: inherit; }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+`;
+
+        const script = `
+const FIELDS = ${JSON.stringify(FIELDS.map(f => ({ key: fieldKey(f), when: f.when, fallback: f.fallback, section: SECTIONS.find(s => s.fields.includes(f))!.id, label: f.label })))};
+const EXAMPLES = ${JSON.stringify(EXAMPLES.map(e => e.yaml))};
+const saved = vscode.getState() || {};
+if (saved.guide) $('#guide').open = true;
+let applying = false;
+let values = {};
+
+function rowOf(key) { return document.querySelector('.row[data-row="' + CSS.escape(key) + '"]'); }
+function effective(key) { const f = FIELDS.find(x => x.key === key); return values[key] !== undefined ? values[key] : f && f.fallback; }
+
+function applyVisibility() {
+    for (const f of FIELDS) {
+        if (!f.when) continue;
+        const target = effective(f.when.key);
+        const match = f.when.equals ? f.when.equals.includes(target) : target !== undefined && target !== '';
+        rowOf(f.key).hidden = !match && values[f.key] === undefined;
+    }
+}
+
+function showProblems(problems, failed) {
+    document.querySelectorAll('.row').forEach(r => { r.classList.remove('has-err', 'has-warn'); r.querySelector('.msg').replaceChildren(); r.querySelector('.msg').hidden = true; });
+    document.querySelectorAll('[data-key]').forEach(el => el.removeAttribute('aria-invalid'));
+    const all = problems.slice();
+    if (failed && failed.key) all.unshift({ key: failed.key, level: 'error', message: failed.message });
+    const counts = {};
+    for (const p of all) {
+        const row = p.key && rowOf(p.key);
+        if (!row) continue;
+        row.hidden = false;
+        const err = p.level === 'error';
+        row.classList.add(err ? 'has-err' : 'has-warn');
+        const msg = row.querySelector('.msg');
+        msg.className = 'msg ' + (err ? 'err' : 'warn');
+        msg.append(h('span', { 'aria-hidden': 'true', text: err ? '✕' : '!' }), h('span', { text: p.message }));
+        msg.hidden = false;
+        if (err) row.querySelector('[data-key]').setAttribute('aria-invalid', 'true');
+        const section = FIELDS.find(f => f.key === p.key).section;
+        counts[section] = counts[section] || { err: 0, warn: 0 };
+        counts[section][err ? 'err' : 'warn']++;
+    }
+    document.querySelectorAll('.chip').forEach(chip => {
+        const c = counts[chip.dataset.section];
+        const badge = chip.querySelector('.chip-count');
+        badge.hidden = !c;
+        if (c) { badge.className = 'chip-count ' + (c.err ? 'err' : 'warn'); badge.textContent = '● ' + (c.err || c.warn); badge.title = (c.err ? c.err + ' errors ' : '') + (c.warn ? c.warn + ' warnings' : ''); }
+    });
+
+    const errors = problems.filter(p => p.level === 'error'), warnings = problems.filter(p => p.level === 'warning');
+    const summary = $('#summary');
+    summary.hidden = problems.length === 0;
+    if (problems.length) {
+        summary.className = 'callout ' + (errors.length ? 'err' : 'warn');
+        const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+        const title = errors.length
+            ? plural(errors.length, 'setting stops', 'settings stop') + ' TestFly from starting' + (warnings.length ? ' · ' + plural(warnings.length, 'warning', 'warnings') : '')
+            : plural(warnings.length, 'setting needs', 'settings need') + ' attention';
+        summary.replaceChildren(h('strong', { text: title }), h('ul', {}, [...errors, ...warnings].map(p => {
+            const f = FIELDS.find(x => x.key === p.key);
+            return h('li', {}, f ? h('a', { href: '#', 'data-focus': p.key, text: f.label }) : null, f ? ': ' : '', p.message);
+        })));
+    }
+}
+
+window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (msg.type === 'copied') { flash($('#copied-' + msg.id), 'Copied'); return; }
+    if (msg.type !== 'state') return;
+    $('#loading').hidden = true;
+    $('#empty').hidden = msg.exists;
+    $('#form').hidden = !msg.exists;
+    $('#openYaml').hidden = !msg.exists;
+    const fail = $('#fail');
+    fail.hidden = !(msg.failed && !msg.failed.key);
+    if (!fail.hidden) fail.replaceChildren(h('strong', { text: 'The change could not be saved' }), h('p', { text: msg.failed.message }));
+    if (!msg.exists) { $('#status').textContent = 'No configuration file found.'; return; }
+    $('#status').textContent = 'Editing ' + msg.fileName + (msg.dirty ? ' · has unsaved edits in the text editor' : ' · changes save automatically');
+
+    values = msg.values;
+    applying = true;
     document.querySelectorAll('[data-key]').forEach((el) => {
-        el.addEventListener('change', () => {
-            if (applying) return;
-            const value = el.type === 'checkbox' ? el.checked : el.value;
-            vscode.postMessage({ command: 'set', key: el.dataset.key, value });
-        });
+        const key = el.dataset.key;
+        if (el === document.activeElement && el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+        const value = values[key];
+        const fallback = el.dataset.fallback;
+        const unset = value === undefined;
+        if (el.type === 'checkbox') {
+            el.checked = unset ? fallback === 'true' : value === true;
+        } else if (el.tagName === 'SELECT') {
+            const text = unset ? '' : String(value);
+            if (text && ![...el.options].some(o => o.value === text)) el.append(h('option', { value: text, text: text + ' (custom)' }));
+            el.value = text;
+        } else {
+            el.value = unset ? '' : String(value);
+        }
+        el.classList.toggle('unset', unset);
+        const state = rowOf(key).querySelector('.state');
+        if (state) state.textContent = unset ? (fallback !== undefined ? 'Default' : '') : '';
     });
+    applying = false;
+    applyVisibility();
+    showProblems(msg.problems, msg.failed);
 
-    window.addEventListener('message', (event) => {
-        const msg = event.data;
-        if (msg.type !== 'state') return;
-        $('empty').hidden = msg.exists;
-        $('form').hidden = !msg.exists;
-        $('openYaml').hidden = !msg.exists;
-        if (!msg.exists) { $('status').textContent = 'No configuration file found.'; return; }
-        $('status').textContent = 'Editing ' + msg.fileName + ' — changes are saved as you make them.';
+    if (msg.saved) {
+        const row = rowOf(msg.saved);
+        if (row) { row.classList.remove('just-saved'); void row.offsetWidth; row.classList.add('just-saved'); }
+        flash($('#saved'), 'Saved ✓');
+    }
+});
 
-        applying = true;
-        document.querySelectorAll('[data-key]').forEach((el) => {
-            const key = el.dataset.key;
-            const value = msg.values[key];
-            const fallback = el.dataset.fallback;
-            const unset = value === undefined;
-            if (el.type === 'checkbox') {
-                el.checked = unset ? fallback === 'true' : value === true;
-            } else if (el.tagName === 'SELECT') {
-                const text = unset ? '' : String(value);
-                if (text && ![...el.options].some(o => o.value === text)) {
-                    const custom = document.createElement('option');
-                    custom.value = text; custom.textContent = text + ' (custom)';
-                    el.appendChild(custom);
-                }
-                el.value = text;
-            } else {
-                el.value = unset ? '' : String(value);
-            }
-            el.classList.toggle('unset', unset);
-        });
-        applying = false;
-
-        const problems = $('problems');
-        problems.hidden = msg.problems.length === 0;
-        problems.querySelector('ul').innerHTML = '';
-        msg.problems.forEach((p) => {
-            const li = document.createElement('li');
-            li.textContent = p;
-            problems.querySelector('ul').appendChild(li);
-        });
+document.querySelectorAll('[data-key]').forEach((el) => {
+    el.addEventListener('change', () => {
+        if (applying) return;
+        post('set', { key: el.dataset.key, value: el.type === 'checkbox' ? el.checked : el.value });
     });
-
-    vscode.postMessage({ command: 'ready' });
-</script>
-</body>
-</html>`;
+});
+document.addEventListener('click', (event) => {
+    const copy = event.target.closest('[data-copy]');
+    if (copy) { post('copy', { id: copy.dataset.copy, text: EXAMPLES[Number(copy.dataset.copy)] }); return; }
+    const focus = event.target.closest('[data-focus]');
+    if (focus) {
+        event.preventDefault();
+        const row = rowOf(focus.dataset.focus);
+        row.hidden = false;
+        row.scrollIntoView({ block: 'center' });
+        row.querySelector('[data-key]').focus();
+        return;
+    }
+    const cmd = event.target.closest('button[data-command]');
+    if (cmd) post(cmd.dataset.command);
+});
+$('#guide').addEventListener('toggle', () => vscode.setState({ guide: $('#guide').open }));
+post('ready');
+`;
+        return renderPage({ cspSource, nonce: getNonce(), title: 'TestFly Configuration', css, body, script });
     }
 
     private static fieldHtml(field: Field): string {
-        const key = field.path.join('.');
+        const key = fieldKey(field);
         const id = `f-${key.replace(/\./g, '-')}`;
+        const helpId = `${id}-help`;
         const fallback = field.fallback === undefined ? '' : ` data-fallback="${escapeHtml(String(field.fallback))}"`;
+        const describedBy = ` aria-describedby="${helpId} ${id}-msg"`;
+        const required = /Required/.test(field.description ?? '');
         let control: string;
         if (field.type === 'select') {
-            const def = field.fallback === undefined ? '— not set —' : `— default (${field.fallback}) —`;
-            control = `<select id="${id}" data-key="${key}"${fallback}><option value="">${escapeHtml(def)}</option>${(field.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+            const def = field.fallback === undefined ? '— not set —' : `Default (${field.fallback})`;
+            control = `<select id="${id}" data-key="${key}"${fallback}${describedBy}><option value="">${escapeHtml(def)}</option>${(field.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
         } else if (field.type === 'boolean') {
-            control = `<input type="checkbox" id="${id}" data-key="${key}"${fallback}>`;
+            control = `<span class="check"><input type="checkbox" id="${id}" data-key="${key}"${fallback}${describedBy}><span class="muted state"></span></span>`;
         } else {
-            const placeholder = field.fallback === undefined ? '' : ` placeholder="default: ${escapeHtml(String(field.fallback))}"`;
-            control = `<input type="${field.type}" id="${id}" data-key="${key}"${fallback}${placeholder}${field.type === 'number' ? ' min="0"' : ''}>`;
+            // Placeholders only state defaults; an example value there is easily mistaken for a real one.
+            const placeholder = field.fallback === undefined ? '' : ` placeholder="Default: ${escapeHtml(String(field.fallback))}"`;
+            const extra = field.type === 'number' ? ' min="0" step="1" inputmode="numeric"' : ' spellcheck="false" autocomplete="off"';
+            control = `<input type="${field.type}" id="${id}" data-key="${key}"${fallback}${placeholder}${describedBy}${extra}>`;
         }
+        const help = [field.description, field.example ? `e.g. ${field.example}` : '']
+            .filter(Boolean).map(t => escapeHtml(t!)).join(' · ');
+        const when = field.when ? ' data-when="1"' : '';
         return `
-            <div class="row">
-                <label for="${id}">${escapeHtml(field.label)}<span class="key">${escapeHtml(key)}</span></label>
-                ${control}
-                ${field.hint ? `<span class="hint">${escapeHtml(field.hint)}</span>` : ''}
-            </div>`;
+    <div class="row" data-row="${key}"${when}>
+        <label for="${id}">${escapeHtml(field.label)}${required ? '<span class="req" aria-hidden="true">*</span>' : ''}<span class="key">${escapeHtml(key)}</span></label>
+        <div class="control">
+            ${control}
+            ${help ? `<span class="help" id="${helpId}">${help}</span>` : ''}
+            <span class="msg" id="${id}-msg" hidden></span>
+        </div>
+    </div>`;
     }
 }

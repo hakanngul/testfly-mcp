@@ -79,7 +79,7 @@ class TestFlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout
 
         val btnDocs = JButton("📖 Open Documentation")
         btnDocs.addActionListener {
-            BrowserUtil.browse("https://hakanngul.github.io/testfly")
+            BrowserUtil.browse("https://testfly.dev")
         }
 
         actionsPanel.add(btnRegister)

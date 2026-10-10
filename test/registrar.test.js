@@ -68,3 +68,32 @@ test('Antigravity registration writes the user-level file and status detects sta
       fs.rmSync(home, { recursive: true, force: true });
     }
   });
+
+test('MCP preview shows exactly what registration writes, without writing',
+  { skip: Number(process.versions.node.split('.')[0]) < 22 }, () => {
+    const { McpRegistrar } = require('../vscode-extension/src/registrar.ts');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'testfly-mcp-preview-'));
+    const bridge = path.join(__dirname, '../bin/testfly-mcp.js');
+    try {
+      const file = path.join(root, '.vscode/mcp.json');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ servers: { custom: { command: 'custom' } } }));
+      const before = fs.readFileSync(file, 'utf8');
+
+      const preview = McpRegistrar.preview('vscode', bridge, root, root);
+      assert.equal(fs.readFileSync(file, 'utf8'), before);
+      assert.deepEqual(preview.keptServers, ['custom']);
+      assert.equal(preview.upToDate, false);
+      assert.match(preview.snippet, /"type": "stdio"/);
+
+      McpRegistrar.register(['vscode'], bridge, root, root);
+      assert.equal(fs.readFileSync(file, 'utf8'), preview.after);
+      assert.equal(McpRegistrar.preview('vscode', bridge, root, root).upToDate, true);
+
+      fs.writeFileSync(file, '{ // comment\n}');
+      assert.match(McpRegistrar.preview('vscode', bridge, root, root).error, /not valid JSON/);
+      assert.match(McpRegistrar.preview('cursor', bridge, undefined, root).error, /workspace folder/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
