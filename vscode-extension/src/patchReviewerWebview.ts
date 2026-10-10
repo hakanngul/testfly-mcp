@@ -31,6 +31,11 @@ export class PatchReviewerWebview {
 
         panel.webview.onDidReceiveMessage(async (message) => {
             if (message.command === 'apply') {
+                const confirm = await vscode.window.showWarningMessage(
+                    `Apply ${message.filePath} to project source files? Review the diff before continuing.`,
+                    { modal: true }, 'Apply patch'
+                );
+                if (confirm !== 'Apply patch') return;
                 const res = await RemediationService.applyPatch(workspaceRoot, message.filePath);
                 if (res.success) {
                     vscode.window.showInformationMessage(res.message);

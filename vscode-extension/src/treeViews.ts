@@ -29,7 +29,7 @@ export class QuickActionsTreeProvider implements vscode.TreeDataProvider<QuickAc
     getChildren(): Thenable<QuickActionItem[]> {
         return Promise.resolve([
             new QuickActionItem(
-                '⚡ 1-Click MCP Setup (Cursor, Claude, Copilot)',
+                '⚡ Configure Workspace MCP',
                 'testfly.multiMcpSetup',
                 'hubot',
                 'Configure Playwright MCP and TestFly Bridge across all AI assistants'
@@ -110,7 +110,7 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
         const folders = vscode.workspace.workspaceFolders;
         const root = folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
         const diag = await Checker.getDiagnostics(root);
-        const registered = McpRegistrar.isRegisteredAnywhere();
+        const registered = McpRegistrar.isRegisteredWorkspace(root);
 
         return [
             new StatusItem('JDK 21+', diag.javaInstalled ? (diag.javaVersion || 'Ready') : 'Missing', diag.javaInstalled ? 'pass-filled' : 'error'),
@@ -119,7 +119,7 @@ export class StatusTreeProvider implements vscode.TreeDataProvider<StatusItem> {
             new StatusItem('testfly.yml', diag.hasTestFlyYml ? 'Present (✓)' : 'Not Found', diag.hasTestFlyYml ? 'pass-filled' : 'info'),
             new StatusItem('Action Cache', `${diag.actionCacheCount} goals`, 'zap'),
             new StatusItem('Self-Healing Patches', `${diag.remediationPatchCount} patches`, diag.remediationPatchCount > 0 ? 'tools' : 'pass'),
-            new StatusItem('AI MCP Assistants', registered ? 'Configured (✓)' : 'Setup Needed', registered ? 'pass-filled' : 'warning')
+            new StatusItem('VS Code MCP', registered ? 'Configured (✓)' : 'Setup Needed', registered ? 'pass-filled' : 'warning')
         ];
     }
 }

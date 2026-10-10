@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const SERVER_NAME = 'testfly-bridge';
 const SERVER_VERSION = '1.1.0';
@@ -80,19 +80,20 @@ const TOOLS = [
   },
   {
     name: 'apply_remediation_patch',
-    description: 'Apply a self-healing git diff patch from target/remediations/ directly to the Java test source code.',
+    description: 'After reviewing the diff, explicitly confirm application of a patch from target/remediations/.',
     inputSchema: {
       type: 'object',
       properties: {
         workspaceRoot: { type: 'string', description: 'Root directory of the TestFly project' },
-        patchFilePath: { type: 'string', description: 'Full path to the .patch file' }
+        patchFilePath: { type: 'string', description: 'Full path to the .patch file' },
+        confirm: { type: 'boolean', description: 'True only after the user has reviewed and approved this patch' }
       },
-      required: ['patchFilePath']
+      required: ['patchFilePath', 'confirm']
     }
   },
   {
     name: 'init_testfly_project',
-    description: 'Scaffold a modern TestFly 1.0.6 Java 21 test automation project with pom.xml, testfly.yml, and sample test.',
+    description: 'Scaffold a TestFly 1.0.7 Java 21 test project with pom.xml, testfly.yml, and a sample test.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -222,8 +223,15 @@ ${steps}
 
   if (name === 'apply_remediation_patch') {
     try {
-      execSync(`git apply "${args.patchFilePath}"`, { cwd: root, stdio: 'pipe' });
-      return { content: [{ type: 'text', text: `Successfully applied patch ${path.basename(args.patchFilePath)}` }] };
+      if (args.confirm !== true) throw new Error('Review the patch and pass confirm: true before applying it.');
+      const dir = fs.realpathSync(path.join(root, 'target', 'remediations'));
+      const patch = fs.realpathSync(args.patchFilePath);
+      if (path.dirname(patch) !== dir || !patch.endsWith('.patch')) {
+        throw new Error('Patch must be a .patch file inside target/remediations.');
+      }
+      execFileSync('git', ['apply', '--check', patch], { cwd: root, stdio: 'pipe' });
+      execFileSync('git', ['apply', patch], { cwd: root, stdio: 'pipe' });
+      return { content: [{ type: 'text', text: `Successfully applied patch ${path.basename(patch)}` }] };
     } catch (err) {
       return { content: [{ type: 'text', text: `Failed to apply patch: ${err.message}` }] };
     }
@@ -231,34 +239,13 @@ ${steps}
 
   if (name === 'init_testfly_project') {
     const dir = args.directory || path.join(root, 'testfly-suite');
+    if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
+      throw new Error(`Refusing to overwrite files in non-empty directory: ${dir}`);
+    }
     fs.mkdirSync(dir, { recursive: true });
     fs.mkdirSync(path.join(dir, 'src', 'test', 'java', 'com', 'example', 'tests'), { recursive: true });
 
-    fs.writeFileSync(path.join(dir, 'testfly.yml'), `# TestFly Configuration
-execution:
-  mode: local
-  baseUrl: https://example.com
-  parallel: methods
-  threadCount: 4
-
-browser:
-  name: chrome
-  headless: false
-  lifecycle: per-test
-
-retry:
-  enabled: true
-  maxAttempts: 2
-
-timeouts:
-  explicit: 10
-  pageLoad: 30
-
-reporting:
-  html:
-    enabled: true
-    title: TestFly Test Automation Report
-`, 'utf8');
+    fs.copyFileSync(path.join(__dirname, '..', 'templates', 'testfly.yml'), path.join(dir, 'testfly.yml'));
 
     fs.writeFileSync(path.join(dir, 'pom.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"

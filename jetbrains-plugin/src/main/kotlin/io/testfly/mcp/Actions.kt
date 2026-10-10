@@ -9,64 +9,43 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
+import javax.swing.JFileChooser
 
 private const val DOCS_URL = "https://hakanngul.github.io/testfly"
 internal const val NOTIFICATION_GROUP = "TestFly MCP"
 
-private val DEFAULT_TESTFLY_YML = """# TestFly Configuration v1.0.6
-execution:
-  mode: local
-  baseUrl: http://localhost:8080
-  parallel: methods
-  threadCount: 4
-  maxActiveSessions: 4
-
-browser:
-  name: chrome
-  headless: false
-  lifecycle: per-test
-  captureConsoleErrors: true
-  arguments:
-    - --start-maximized
-    - --disable-notifications
-
-retry:
-  enabled: true
-  maxAttempts: 2
-
-timeouts:
-  explicit: 10
-  pageLoad: 30
-
-reporting:
-  html:
-    enabled: true
-    title: TestFly Test Automation Report
-
-ai:
-  provider: gemini
-  model: gemini-2.0-flash
-  apiKey: ""
-  selfHealing:
-    enabled: true
-    generatePatches: true
-""".trimIndent()
-
 class RegisterMCPAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val ok = MCPRegistrar.register("npx", "-y @testfly/mcp")
+        val ok = registerLocalBridge(project) ?: return
         if (ok) {
             notify(project, "Registered TestFly MCP Bridge successfully. Restart IDE or AI Assistant to activate.", NotificationType.INFORMATION)
         } else {
             notify(
                 project,
-                "Could not auto-register. Add manually in <i>Settings → Tools → AI Assistant → MCP Servers</i>. " +
-                "Command: <code>npx</code>, Args: <code>-y @testfly/mcp</code>",
+                "Could not register the local bridge. Existing MCP settings were not replaced with an empty configuration.",
                 NotificationType.ERROR
             )
         }
     }
+}
+
+/** Explicit selection and confirmation before editing IDE-wide MCP settings. */
+fun registerLocalBridge(project: Project): Boolean? {
+    val chooser = JFileChooser().apply {
+        dialogTitle = "Select local testfly-mcp.js bridge"
+        fileSelectionMode = JFileChooser.FILES_ONLY
+    }
+    if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return null
+    val script = chooser.selectedFile
+    if (script.name != "testfly-mcp.js" || !script.isFile) {
+        Messages.showErrorDialog(project, "Select the testfly-mcp.js file from your local bridge checkout.", "TestFly MCP")
+        return null
+    }
+    if (Messages.showYesNoDialog(project,
+            "Register node \"${script.absolutePath}\" in your IDE-wide MCP configuration? Only the TestFly entry will change.",
+            "Configure TestFly MCP", Messages.getQuestionIcon()) != Messages.YES) return null
+    return MCPRegistrar.register("node", "\"${script.absolutePath}\"")
 }
 
 class CheckStatusAction : AnAction() {
@@ -123,7 +102,7 @@ class InitConfigAction : AnAction() {
         }
 
         try {
-            configFile.writeText(DEFAULT_TESTFLY_YML)
+            configFile.writeText(TestFlyTemplates.config)
             LocalFileSystem.getInstance().refreshAndFindFileByIoFile(configFile)
             notify(project, "Created <code>testfly.yml</code> in project root.", NotificationType.INFORMATION)
         } catch (ex: Exception) {

@@ -1,5 +1,7 @@
 # ✈️ TestFly MCP — Kapsamlı Yetenek ve Kullanım Rehberi
 
+> **Tarihsel taslak — güncel komut rehberi değildir.** Aşağıdaki 88 araç, `testfly record`/`studio` ve `shard` anlatımı mevcut Node.js `bin/testfly-mcp.js` uygulamasını yansıtmaz. Mevcut köprü altı MCP aracı sunar; proje oluşturma için `node bin/testfly-mcp.js init <dizin>` kullanın. Geçerli kurulum ve sınırlar için kök [README.md](README.md) dosyasına bakın.
+
 **TestFly MCP (Model Context Protocol)**, modern web otomasyon çerçevesi **[TestFly](https://github.com/hakanngul/testfly)** ile yapay zeka kodlama asistanlarını (**Claude Code**, **GitHub Copilot**, **Cursor**, **JetBrains AI Assistant**, **Antigravity**) birbirine bağlayan yeni nesil bir test otomasyon ve kod üretim köprüsüdür.
 
 Bu rehber, `testfly-mcp` ile yapabileceğiniz tüm işlemleri, 88 adet MCP aracını, CLI komutlarını, görsel Web Stüdyosu'nu ve CI/CD optimizasyonlarını adım adım ele almaktadır.
