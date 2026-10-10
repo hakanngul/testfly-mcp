@@ -81,7 +81,7 @@
       },
       {
         "command": "testfly.multiMcpSetup",
-        "title": "TestFly: 1-Click Multi-Assistant MCP Setup (Cursor, Claude, Copilot)",
+        "title": "TestFly: Configure Workspace MCP (Cursor & VS Code)",
         "icon": "$(hubot)"
       },
       {
@@ -106,7 +106,7 @@
       },
       {
         "command": "testfly.shardTests",
-        "title": "TestFly: Run CI Test Sharder",
+        "title": "TestFly: CI Test Sharder (Requires Suite Metrics)",
         "icon": "$(split-horizontal)"
       },
       {
@@ -152,7 +152,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "node ../scripts/sync-templates.js && tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

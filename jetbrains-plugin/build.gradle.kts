@@ -12,6 +12,12 @@ kotlin {
     jvmToolchain(21)
 }
 
+sourceSets {
+    main {
+        resources.srcDir("../templates")
+    }
+}
+
 repositories {
     mavenCentral()
     intellijPlatform {

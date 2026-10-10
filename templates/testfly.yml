@@ -1,0 +1,27 @@
+# TestFly 1.0.7 starter configuration
+execution:
+  mode: local
+  baseUrl: https://example.com
+  parallel: none
+  threadCount: 1
+
+browser:
+  name: chrome
+  headless: false
+  lifecycle: per-test
+
+timeouts:
+  explicit: 10
+  pageLoad: 30
+
+reporting:
+  htmlReport: true
+
+# Optional AI features require a configured provider and API key.
+ai:
+  failureAnalysis: false
+  generatePatch: false
+
+locators:
+  selfHealing: false
+  aiHealing: false

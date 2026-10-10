@@ -10,6 +10,8 @@ import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import io.testfly.mcp.MCPRegistrar
+import io.testfly.mcp.TestFlyTemplates
+import io.testfly.mcp.registerLocalBridge
 import java.awt.BorderLayout
 import java.awt.Font
 import java.awt.GridLayout
@@ -55,12 +57,12 @@ class TestFlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout
             JBUI.Borders.empty(8)
         )
 
-        val btnRegister = JButton("⚡ 1-Click Multi-Assistant MCP Setup")
+        val btnRegister = JButton("⚡ Configure Local MCP Bridge")
         btnRegister.addActionListener {
-            val ok = MCPRegistrar.register("npx", "-y @testfly/mcp")
-            if (ok) {
+            val ok = registerLocalBridge(project)
+            if (ok == true) {
                 notify("TestFly MCP Bridge registered with AI Assistant.", NotificationType.INFORMATION)
-            } else {
+            } else if (ok == false) {
                 notify("Failed to auto-register. Check AI Assistant settings.", NotificationType.ERROR)
             }
             refreshAll()
@@ -236,9 +238,20 @@ class TestFlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout
 
     private fun applyPatch(patchName: String) {
         val basePath = project.basePath ?: return
-        val patchFile = File(basePath, "target/remediations/$patchName")
-        if (!patchFile.exists()) return
+        val patchDir = File(basePath, "target/remediations").canonicalFile
+        val patchFile = File(patchDir, patchName).canonicalFile
+        if (patchFile.parentFile != patchDir || !patchFile.name.endsWith(".patch") || !patchFile.isFile) return
+        if (Messages.showYesNoDialog(project,
+                "Apply $patchName to project source files? Review the diff above before continuing.",
+                "Apply TestFly Patch", Messages.getQuestionIcon()) != Messages.YES) return
         try {
+            val check = ProcessBuilder("git", "apply", "--check", patchFile.absolutePath)
+                .directory(File(basePath)).redirectErrorStream(true).start()
+            val checkMessage = check.inputStream.bufferedReader().readText()
+            if (check.waitFor() != 0) {
+                notify("Patch cannot be applied: $checkMessage", NotificationType.ERROR)
+                return
+            }
             val proc = ProcessBuilder("git", "apply", patchFile.absolutePath)
                 .directory(File(basePath))
                 .redirectErrorStream(true)
@@ -263,40 +276,7 @@ class TestFlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout
             val overwrite = Messages.showYesNoDialog(project, "testfly.yml already exists. Overwrite?", "TestFly", Messages.getQuestionIcon()) == Messages.YES
             if (!overwrite) return
         }
-        val defaultYml = """# TestFly Configuration v1.0.6
-execution:
-  mode: local
-  baseUrl: http://localhost:8080
-  parallel: methods
-  threadCount: 4
-
-browser:
-  name: chrome
-  headless: false
-  lifecycle: per-test
-
-retry:
-  enabled: true
-  maxAttempts: 2
-
-timeouts:
-  explicit: 10
-  pageLoad: 30
-
-reporting:
-  html:
-    enabled: true
-    title: TestFly Test Automation Report
-
-ai:
-  provider: gemini
-  model: gemini-2.0-flash
-  apiKey: ""
-  selfHealing:
-    enabled: true
-    generatePatches: true
-"""
-        configFile.writeText(defaultYml)
+        configFile.writeText(TestFlyTemplates.config)
         LocalFileSystem.getInstance().refreshAndFindFileByIoFile(configFile)
         notify("Created testfly.yml in project root.", NotificationType.INFORMATION)
     }

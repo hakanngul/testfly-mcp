@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface RemediationPatch {
     fileName: string;
@@ -52,9 +52,13 @@ export class RemediationService {
 
     public static async applyPatch(workspaceRoot: string, patchFilePath: string): Promise<{ success: boolean; message: string }> {
         try {
-            // First check if git is available and can apply
-            const cmd = `git apply "${patchFilePath}"`;
-            await execAsync(cmd, { cwd: workspaceRoot });
+            const root = fs.realpathSync(this.getRemediationsDir(workspaceRoot));
+            const patch = fs.realpathSync(patchFilePath);
+            if (path.dirname(patch) !== root || !patch.endsWith('.patch')) {
+                throw new Error('Patch must be a .patch file directly inside target/remediations.');
+            }
+            await execFileAsync('git', ['apply', '--check', patch], { cwd: workspaceRoot });
+            await execFileAsync('git', ['apply', patch], { cwd: workspaceRoot });
             return {
                 success: true,
                 message: `Successfully applied patch ${path.basename(patchFilePath)} to source code.`

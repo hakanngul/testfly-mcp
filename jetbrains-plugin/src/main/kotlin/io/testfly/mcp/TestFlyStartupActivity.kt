@@ -36,22 +36,15 @@ class TestFlyStartupActivity : ProjectActivity {
         }
 
         if (!MCPRegistrar.isRegistered()) {
-            val registered = MCPRegistrar.register("npx", "-y @testfly/mcp")
-            if (registered) {
-                showNotification(
-                    project,
-                    "TestFly MCP Bridge registered with AI Assistant. <b>Restart the IDE</b> to activate.",
-                    NotificationType.INFORMATION
-                )
-            }
+            val notification = NotificationGroupManager.getInstance()
+                .getNotificationGroup(NOTIFICATION_GROUP)
+                ?.createNotification("TestFly Studio", "MCP is optional. Select a local bridge to configure it.", NotificationType.INFORMATION)
+            notification?.addAction(NotificationAction.createSimple("Configure MCP") {
+                registerLocalBridge(project)
+                notification.expire()
+            })
+            notification?.notify(project)
         }
-    }
-
-    private fun showNotification(project: Project, content: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup(NOTIFICATION_GROUP)
-            ?.createNotification("TestFly Studio", content, type)
-            ?.notify(project)
     }
 
     private fun createDummyEvent(project: Project): com.intellij.openapi.actionSystem.AnActionEvent {
