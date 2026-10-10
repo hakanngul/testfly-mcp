@@ -115,6 +115,11 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "testfly.openReport",
+        "title": "TestFly: Open Test Report (HTML / Allure / ReportPortal)",
+        "icon": "$(file-code)"
+      },
+      {
         "command": "testfly.initConfig",
         "title": "TestFly: Initialize testfly.yml Config",
         "icon": "$(gear)"

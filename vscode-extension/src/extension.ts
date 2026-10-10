@@ -17,6 +17,7 @@ import { PatchReviewerWebview } from './patchReviewerWebview';
 import { ConfigWebview } from './configWebview';
 import { SharderService, TestDurationItem } from './sharderService';
 import { CodegenService, RecordedAction } from './codegenService';
+import { decideReportActions, discoverReports } from './reportService';
 
 export async function activate(context: vscode.ExtensionContext) {
     const statusBar = new TestFlyStatusBar();
@@ -180,7 +181,64 @@ export async function activate(context: vscode.ExtensionContext) {
         refreshAll();
     };
 
-    // 9. Command: Actions Menu
+    // 8b. Command: Initialize testfly.yml (refresh sidebar so stale
+    // "testfly.yml: Not Found" status disappears after creation)
+    const runInitConfig = async () => {
+        await initTestFlyConfig();
+        refreshAll();
+    };
+
+    // 9. Command: Open Test Report (HTML -> Allure -> ReportPortal)
+    const runOpenReport = async () => {
+        const root = getWorkspaceRoot();
+        if (!root) {
+            vscode.window.showErrorMessage('TestFly: Open a workspace folder first.');
+            return;
+        }
+        const discovered = discoverReports(root);
+        const actions = decideReportActions(discovered);
+        if (actions.length === 0) {
+            vscode.window.showInformationMessage(
+                'TestFly: No report found yet (checked target/testfly-report.html, build/testfly-report.html, target/allure-results). Run your suite first.'
+            );
+            return;
+        }
+
+        const openAction = async (kind: string, target?: string) => {
+            if (!target) return;
+            if (kind === 'portal') {
+                await vscode.env.openExternal(vscode.Uri.parse(target));
+            } else if (kind === 'allure-serve') {
+                const terminal = vscode.window.createTerminal('TestFly Allure');
+                terminal.sendText(`allure serve "${target}"`);
+                terminal.show();
+                vscode.window.showInformationMessage(`TestFly: Serving Allure results from ${target}`);
+            } else {
+                // html + allure-html: open the generated file in the editor
+                await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(target));
+            }
+        };
+
+        if (actions.length === 1) {
+            await openAction(actions[0].kind, actions[0].target);
+            return;
+        }
+
+        const labelFor = (kind: string, target?: string) => {
+            if (kind === 'portal') return `$(cloud) Open ReportPortal — ${target}`;
+            if (kind === 'allure-serve') return `$(graph) Serve Allure results — ${target}`;
+            if (kind === 'allure-html') return `$(graph) Open Allure HTML — ${target}`;
+            return `$(file-code) Open HTML report — ${target}`;
+        };
+        const picked = await vscode.window.showQuickPick(
+            actions.map((a) => ({ label: labelFor(a.kind, a.target), actionKind: a.kind, target: a.target })),
+            { placeHolder: 'Multiple TestFly reports found — pick one to open' }
+        );
+        if (!picked) return;
+        await openAction(picked.actionKind, picked.target);
+    };
+
+    // 10. Command: Actions Menu
     const showMenu = async () => {
         const items: vscode.QuickPickItem[] = [
             {
@@ -219,6 +277,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 detail: 'checkStatus'
             },
             {
+                label: '$(file-code) Open Test Report',
+                description: 'Open testfly-report.html, Allure, or ReportPortal link',
+                detail: 'openReport'
+            },
+            {
                 label: '$(book) Open Documentation',
                 description: 'Browse documentation and guides',
                 detail: 'openDocs'
@@ -236,6 +299,7 @@ export async function activate(context: vscode.ExtensionContext) {
             case 'initProject': await runScaffoldProject(); break;
             case 'shardTests': await runShardTests(); break;
             case 'checkStatus': await runCheckStatus(); break;
+            case 'openReport': await runOpenReport(); break;
             case 'openDocs': vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)); break;
         }
     };
@@ -254,8 +318,10 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('testfly-mcp.shardTests', runShardTests),
         vscode.commands.registerCommand('testfly.checkStatus', runCheckStatus),
         vscode.commands.registerCommand('testfly-mcp.checkStatus', runCheckStatus),
-        vscode.commands.registerCommand('testfly.initConfig', initTestFlyConfig),
-        vscode.commands.registerCommand('testfly-mcp.initConfig', initTestFlyConfig),
+        vscode.commands.registerCommand('testfly.openReport', runOpenReport),
+        vscode.commands.registerCommand('testfly-mcp.openReport', runOpenReport),
+        vscode.commands.registerCommand('testfly.initConfig', runInitConfig),
+        vscode.commands.registerCommand('testfly-mcp.initConfig', runInitConfig),
         vscode.commands.registerCommand('testfly.refreshStatus', refreshAll),
         vscode.commands.registerCommand('testfly-mcp.refreshStatus', refreshAll),
         vscode.commands.registerCommand('testfly.openDocs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL))),
